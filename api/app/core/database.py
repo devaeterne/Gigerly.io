@@ -89,3 +89,4 @@ async def check_db_health() -> bool:
     except Exception as e:
         logger.error(f"Database health check failed: {e}")
         return False
+get_session = get_db

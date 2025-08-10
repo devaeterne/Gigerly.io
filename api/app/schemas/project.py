@@ -3,7 +3,7 @@
 from __future__ import annotations
 from datetime import date, datetime
 from typing import List, Optional, Any
-from pydantic import BaseModel, Field,ConfigDict, model_validator ,field_validator
+from pydantic import BaseModel, Field, ConfigDict, model_validator ,field_validator
 
 from app.models import ProjectStatus, ProjectBudgetType, ProjectComplexity
 from app.models.project import ProjectStatus, ProjectBudgetType, ProjectComplexity
@@ -36,7 +36,7 @@ class ProjectResponse(BaseModel):
     description: str
     budget_type: ProjectBudgetType
     currency: str
-    customer: UserLite                      # ORM objesi gelecek, sorun değil
+    customer: Optional[UserLite] = None                   # ORM objesi gelecek, sorun değil
     model_config = ConfigDict(from_attributes=True)
     complexity: Optional[ProjectComplexity] = None
     estimated_duration: Optional[int] = None

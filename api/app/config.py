@@ -3,7 +3,8 @@ from pydantic_settings import BaseSettings
 from pydantic import validator
 from typing import List, Optional
 import os
-import logging 
+import logging
+from pathlib import Path
 
 
 logging.getLogger("passlib").setLevel(logging.ERROR)
@@ -95,8 +96,13 @@ class Settings(BaseSettings):
         env_file = ".env"
         case_sensitive = True
 
-# Create settings instance
+## Create settings instance
 settings = Settings()
+
+# Ensure log directory exists before configuring handlers
+LOG_DIR = Path("logs")
+LOG_DIR.mkdir(parents=True, exist_ok=True)
+LOG_FILE = LOG_DIR / "app.log"
 
 # Logging configuration
 LOGGING_CONFIG = {
@@ -119,12 +125,14 @@ LOGGING_CONFIG = {
         },
         "file": {
             "formatter": settings.LOG_FORMAT,
-            "class": "logging.FileHandler",
-            "filename": "logs/app.log",
+            "class": "logging.handlers.RotatingFileHandler",
+            "filename": str(LOG_FILE),
+            "maxBytes": 10 * 1024 * 1024,
+            "backupCount": 5,
         },
     },
     "root": {
         "level": settings.LOG_LEVEL,
-        "handlers": ["default"],
+        "handlers": ["default", "file"],
     },
 }
