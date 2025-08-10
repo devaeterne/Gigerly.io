@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
+from app.core.redis import redis_manager
 from app.models import Project, ProjectStatus, User, UserRole
 from app.schemas.project import (
     ProjectCreate, ProjectUpdate, ProjectResponse, ProjectListResponse
@@ -214,10 +215,9 @@ async def get_project(
                 current_user.role not in [UserRole.admin.value, UserRole.moderator.value]):
             raise ForbiddenError("Project is not publicly available")
 
-    # Sahibi değilse view_count +1
+    # Sahibi değilse view counter'ı Redis'te artır
     if not current_user or current_user.id != project.customer_id:
-        project.view_count += 1
-        await session.commit()
+        await redis_manager.incr(f"project:{project_id}:views")
 
     if project.required_skills is None:
         project.required_skills = []
