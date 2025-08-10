@@ -4,7 +4,12 @@
 import pytest
 import asyncio
 from typing import AsyncGenerator, Generator
-from httpx import AsyncClient
+
+try:
+    from httpx import AsyncClient
+except ModuleNotFoundError:  # pragma: no cover
+    AsyncClient = None
+
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -55,15 +60,18 @@ async def test_db(test_db_engine) -> AsyncGenerator[AsyncSession, None]:
 @pytest.fixture
 async def client(test_db) -> AsyncGenerator[AsyncClient, None]:
     """Create test HTTP client"""
-    
+
+    if AsyncClient is None:  # pragma: no cover
+        pytest.skip("httpx not installed")
+
     async def override_get_db():
         yield test_db
-    
+
     app.dependency_overrides[get_db] = override_get_db
-    
+
     async with AsyncClient(app=app, base_url="http://test") as ac:
         yield ac
-    
+
     app.dependency_overrides.clear()
 
 @pytest.fixture

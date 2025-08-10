@@ -32,7 +32,10 @@ async def get_current_user(
             settings.JWT_SECRET,
             algorithms=[settings.JWT_ALGORITHM]
         )
-        
+        token_type = payload.get("type")
+        if token_type != "access":
+            raise UnauthorizedError("Invalid token type")
+
         user_id_str = payload.get("sub")  # ✅ String olarak al
         if user_id_str is None:
             raise UnauthorizedError("Invalid token")
