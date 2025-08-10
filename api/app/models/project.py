@@ -3,7 +3,7 @@ from __future__ import annotations
 import enum
 from sqlalchemy import Column, Integer, String, Text, ForeignKey, Date, Boolean, Numeric, text
 from sqlalchemy.orm import relationship
-from sqlalchemy.dialects.postgresql import ENUM, JSON
+from sqlalchemy.dialects.postgresql import ENUM, JSONB,JSON
 from .base import Base, IDMixin, TimestampMixin, ReprMixin
 
 # DB'deki enum değerleri lowercase olduğu için böyle tanımlıyoruz:
@@ -62,7 +62,9 @@ class Project(Base, IDMixin, TimestampMixin, ReprMixin):
     category = Column(String(100), nullable=True)
     subcategory = Column(String(100), nullable=True)
 
-    required_skills = Column(JSON, nullable=True)
+    required_skills = mapped_column(
+        JSONB, nullable=False, default=list, server_default=text("'[]'::jsonb")
+    )
     is_featured = Column(Boolean, nullable=False, server_default=text("false"))
     allows_proposals = Column(Boolean, nullable=False, server_default=text("true"))
     max_proposals = Column(Integer, nullable=False, server_default=text("50"))

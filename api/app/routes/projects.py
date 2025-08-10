@@ -51,7 +51,15 @@ async def create_project(
     
     logger.info(f"Project created: {project.title} (ID: {project.id}) by {current_user.email}")
     
-    return ProjectResponse.model_validate(project)
+    await session.commit()
+    res = await session.execute(
+        select(Project)
+        .options(selectinload(Project.customer))
+        .where(Project.id == project.id)
+    )
+    project = res.scalar_one()
+
+    return ProjectResponse.model_validate(project, from_attributes=True)
 
 @router.get("", response_model=PaginatedResponse)
 async def list_projects(
