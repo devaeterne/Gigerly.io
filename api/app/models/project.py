@@ -1,5 +1,7 @@
+# api/app/models/project.py
 from __future__ import annotations
 
+import enum
 from sqlalchemy import Column, Integer, String, Text, ForeignKey, Date, Boolean
 from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import JSONB
@@ -7,9 +9,28 @@ from sqlalchemy.sql import func
 
 from .base import Base, IDMixin, TimestampMixin, ReprMixin
 
+# ========== ENUMS ==========
+class ProjectStatus(enum.Enum):
+    OPEN = "OPEN"
+    IN_PROGRESS = "IN_PROGRESS" 
+    COMPLETED = "COMPLETED"
+    CANCELLED = "CANCELLED"
+    CLOSED = "CLOSED"
+
+class ProjectBudgetType(enum.Enum):
+    FIXED = "FIXED"
+    HOURLY = "HOURLY"
+
+class ProjectComplexity(enum.Enum):
+    SIMPLE = "SIMPLE"
+    MODERATE = "MODERATE"
+    COMPLEX = "COMPLEX"
+
+# ========== MODELS ==========
+
 class Project(Base, IDMixin, TimestampMixin, ReprMixin):
-    # Not: Mevcut migrasyonlarınız 'project' tekil tablo adı kullanıyorsa bunu KORUDUM.
-    __tablename__ = "project"
+    # DÜZELTME: Migration'da 'projects' (çoğul) olarak yaratılmış
+    __tablename__ = "projects"  # ✅ 'project' yerine 'projects'
 
     # --- core fields ---
     title = Column(String(200), nullable=False)

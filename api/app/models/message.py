@@ -1,53 +1,77 @@
-from sqlalchemy import Column, String, Text, Integer, ForeignKey, Boolean, JSON, DateTime, Enum
-from sqlalchemy.orm import relationship
+# api/app/models/message.py
+from __future__ import annotations
+
 import enum
+from sqlalchemy import Column, Integer, String, Text, ForeignKey, Boolean, DateTime, JSON
+from sqlalchemy.orm import relationship
+from sqlalchemy.sql import func
 
-from .base import Base
+from .base import Base, IDMixin, TimestampMixin, ReprMixin
 
-class MessageType(str, enum.Enum):
-    TEXT = "text"
-    FILE = "file"
-    IMAGE = "image"
-    SYSTEM = "system"
+# ========== ENUMS ==========
+class ThreadType(enum.Enum):
+    PROJECT_DISCUSSION = "PROJECT_DISCUSSION"
+    CONTRACT_COMMUNICATION = "CONTRACT_COMMUNICATION"
+    SUPPORT_TICKET = "SUPPORT_TICKET"
+    DISPUTE = "DISPUTE"
 
-class ThreadType(str, enum.Enum):
-    PROJECT_DISCUSSION = "project_discussion"
-    CONTRACT_COMMUNICATION = "contract_communication"
-    SUPPORT_TICKET = "support_ticket"
-    DISPUTE = "dispute"
+class MessageType(enum.Enum):
+    TEXT = "TEXT"
+    FILE = "FILE"
+    IMAGE = "IMAGE"
+    SYSTEM = "SYSTEM"
 
-class Thread(Base):
-    """Message threads for organizing conversations"""
-    
+# ========== MODELS ==========
+
+class Thread(Base, IDMixin, TimestampMixin, ReprMixin):
+    __tablename__ = "threads"
+
+    # Foreign Keys
     project_id = Column(Integer, ForeignKey("projects.id"), nullable=True)
     contract_id = Column(Integer, ForeignKey("contracts.id"), nullable=True)
     
-    type = Column(Enum(ThreadType), nullable=False)
+    # Thread Details
+    type = Column(String(30), nullable=False)
     title = Column(String(200), nullable=True)
-    participants = Column(JSON, nullable=False)
-    is_archived = Column(Boolean, default=False, nullable=False)
+    participants = Column(JSON, nullable=False, server_default="[]")
+    
+    # Status
+    is_archived = Column(Boolean, nullable=False, server_default="false")
     last_message_at = Column(DateTime(timezone=True), nullable=True)
-    message_count = Column(Integer, default=0, nullable=False)
-    
-    def __repr__(self):
-        return f"<Thread {self.type} - {self.title or 'Untitled'}>"
+    message_count = Column(Integer, nullable=False, server_default="0")
 
-class Message(Base):
-    """Individual messages within threads"""
+    # Relationships
+    project = relationship("Project", foreign_keys=[project_id])
+    contract = relationship("Contract", foreign_keys=[contract_id])
+    messages = relationship("Message", back_populates="thread", cascade="all, delete-orphan")
+
+
+class Message(Base, IDMixin, TimestampMixin, ReprMixin):
+    __tablename__ = "messages"
+
+    # Foreign Keys
+    thread_id = Column(Integer, ForeignKey("threads.id", ondelete="CASCADE"), nullable=False)
+    sender_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    reply_to_message_id = Column(Integer, ForeignKey("messages.id"), nullable=True)
     
-    thread_id = Column(Integer, ForeignKey("threads.id"), nullable=False)
-    sender_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    
-    type = Column(Enum(MessageType), default=MessageType.TEXT, nullable=False)
+    # Message Details
+    type = Column(String(20), nullable=False, server_default="TEXT")
     content = Column(Text, nullable=False)
     attachments = Column(JSON, nullable=True)
     
-    is_edited = Column(Boolean, default=False, nullable=False)
+    # Status
+    is_edited = Column(Boolean, nullable=False, server_default="false")
+    is_system_message = Column(Boolean, nullable=False, server_default="false")
     edited_at = Column(DateTime(timezone=True), nullable=True)
-    is_system_message = Column(Boolean, default=False, nullable=False)
     read_by = Column(JSON, nullable=True)
-    reply_to_message_id = Column(Integer, ForeignKey("messages.id"), nullable=True)
+
+    # Relationships
+    thread = relationship("Thread", back_populates="messages", foreign_keys=[thread_id])
+    sender = relationship("User", foreign_keys=[sender_id])
     
-    def __repr__(self):
-        content_preview = self.content[:50] + "..." if len(self.content) > 50 else self.content
-        return f"<Message from {self.sender_id}: {content_preview}>"
+    # ✅ DÜZELTME: Self-referential relationship için remote_side gerekli
+    reply_to = relationship(
+        "Message", 
+        foreign_keys=[reply_to_message_id], 
+        remote_side="id"  # String olarak column adı
+    )

@@ -1,63 +1,76 @@
-from sqlalchemy import Column, String, Text, Enum, DECIMAL, Integer, ForeignKey, JSON, DateTime, func
-from sqlalchemy.orm import relationship
+# api/app/models/transaction.py
+from __future__ import annotations
+
 import enum
+from sqlalchemy import Column, Integer, String, Text, ForeignKey, Numeric, DateTime, JSON
+from sqlalchemy.orm import relationship
+from sqlalchemy.sql import func
 
-from .base import Base
+from .base import Base, IDMixin, TimestampMixin, ReprMixin
 
-class TransactionType(str, enum.Enum):
-    FUND = "fund"
-    RELEASE = "release"
-    PAYOUT = "payout"
-    REFUND = "refund"
-    FEE = "fee"
-    ESCROW = "escrow"
-    WITHDRAWAL = "withdrawal"
+class TransactionType(enum.Enum):
+    FUND = "FUND"
+    RELEASE = "RELEASE"
+    PAYOUT = "PAYOUT"
+    REFUND = "REFUND"
+    FEE = "FEE"
+    ESCROW = "ESCROW"
+    WITHDRAWAL = "WITHDRAWAL"
 
-class TransactionStatus(str, enum.Enum):
-    PENDING = "pending"
-    PROCESSING = "processing"
-    SUCCESS = "success"
-    FAILED = "failed"
-    CANCELLED = "cancelled"
-    REFUNDED = "refunded"
+class TransactionStatus(enum.Enum):
+    PENDING = "PENDING"
+    PROCESSING = "PROCESSING"
+    SUCCESS = "SUCCESS"
+    FAILED = "FAILED"
+    CANCELLED = "CANCELLED"
+    REFUNDED = "REFUNDED"
 
-class PaymentProvider(str, enum.Enum):
-    PAYONEER = "payoneer"
-    STRIPE = "stripe"
-    PAYPAL = "paypal"
-    BANK_TRANSFER = "bank_transfer"
-    INTERNAL = "internal"
+class PaymentProvider(enum.Enum):
+    PAYONEER = "PAYONEER"
+    STRIPE = "STRIPE"
+    PAYPAL = "PAYPAL"
+    BANK_TRANSFER = "BANK_TRANSFER"
+    INTERNAL = "INTERNAL"
 
-class Transaction(Base):
-    """Financial transactions and payment tracking"""
-    
+class Transaction(Base, IDMixin, TimestampMixin, ReprMixin):
+    __tablename__ = "transactions"
+
+    # Foreign Keys
     contract_id = Column(Integer, ForeignKey("contracts.id"), nullable=True)
     milestone_id = Column(Integer, ForeignKey("milestones.id"), nullable=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     
-    type = Column(Enum(TransactionType), nullable=False)
-    amount = Column(DECIMAL(10, 2), nullable=False)
-    currency = Column(String(3), default="USD", nullable=False)
+    # Transaction Details
+    type = Column(String(20), nullable=False)
+    amount = Column(Numeric(10, 2), nullable=False)
+    currency = Column(String(3), nullable=False, server_default="USD")
     
-    provider = Column(Enum(PaymentProvider), nullable=False)
+    # Provider Info
+    provider = Column(String(30), nullable=False)
     provider_transaction_id = Column(String(255), nullable=True)
     provider_reference = Column(String(255), nullable=True)
     
-    status = Column(Enum(TransactionStatus), default=TransactionStatus.PENDING, nullable=False)
+    # Status
+    status = Column(String(20), nullable=False, server_default="PENDING")
     description = Column(Text, nullable=True)
-    extra_data = Column(JSON, nullable=True)  # metadata yerine extra_data
+    extra_data = Column(JSON, nullable=True)
     
-    platform_fee = Column(DECIMAL(10, 2), default=0, nullable=False)
-    payment_processor_fee = Column(DECIMAL(10, 2), default=0, nullable=False)
-    net_amount = Column(DECIMAL(10, 2), nullable=False)
+    # Fees
+    platform_fee = Column(Numeric(10, 2), nullable=False, server_default="0")
+    payment_processor_fee = Column(Numeric(10, 2), nullable=False, server_default="0")
+    net_amount = Column(Numeric(10, 2), nullable=False)
     
+    # Timeline
     initiated_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     processed_at = Column(DateTime(timezone=True), nullable=True)
     completed_at = Column(DateTime(timezone=True), nullable=True)
     
+    # Error Handling
     error_code = Column(String(50), nullable=True)
     error_message = Column(Text, nullable=True)
-    retry_count = Column(Integer, default=0, nullable=False)
-    
-    def __repr__(self):
-        return f"<Transaction {self.type} {self.amount} {self.currency}>"
+    retry_count = Column(Integer, nullable=False, server_default="0")
+
+    # Relationships
+    user = relationship("User", foreign_keys=[user_id])
+    contract = relationship("Contract", foreign_keys=[contract_id])
+    milestone = relationship("Milestone", foreign_keys=[milestone_id])

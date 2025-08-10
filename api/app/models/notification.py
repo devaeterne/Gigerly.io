@@ -1,67 +1,69 @@
-from sqlalchemy import Column, String, Text, Integer, ForeignKey, Boolean, JSON, Enum, DateTime
-from sqlalchemy.orm import relationship
+# api/app/models/notification.py
+from __future__ import annotations
+
 import enum
-from datetime import datetime
+from sqlalchemy import Column, Integer, String, Text, ForeignKey, Boolean, DateTime, JSON
+from sqlalchemy.orm import relationship
+from sqlalchemy.sql import func
 
-from .base import Base
+from .base import Base, IDMixin, TimestampMixin, ReprMixin
 
-class NotificationType(str, enum.Enum):
-    NEW_PROJECT_POSTED = "new_project_posted"
-    PROJECT_UPDATED = "project_updated"
-    PROJECT_CANCELLED = "project_cancelled"
-    PROPOSAL_RECEIVED = "proposal_received"
-    PROPOSAL_ACCEPTED = "proposal_accepted"
-    PROPOSAL_REJECTED = "proposal_rejected"
-    CONTRACT_CREATED = "contract_created"
-    CONTRACT_SIGNED = "contract_signed"
-    CONTRACT_STARTED = "contract_started"
-    CONTRACT_COMPLETED = "contract_completed"
-    CONTRACT_CANCELLED = "contract_cancelled"
-    MILESTONE_FUNDED = "milestone_funded"
-    MILESTONE_SUBMITTED = "milestone_submitted"
-    MILESTONE_APPROVED = "milestone_approved"
-    MILESTONE_RELEASED = "milestone_released"
-    MILESTONE_OVERDUE = "milestone_overdue"
-    PAYMENT_RECEIVED = "payment_received"
-    PAYMENT_RELEASED = "payment_released"
-    PAYOUT_PROCESSED = "payout_processed"
-    PAYMENT_FAILED = "payment_failed"
-    NEW_MESSAGE = "new_message"
-    REVIEW_RECEIVED = "review_received"
-    ACCOUNT_VERIFIED = "account_verified"
-    PROFILE_UPDATED = "profile_updated"
-    SYSTEM_MAINTENANCE = "system_maintenance"
+class NotificationType(enum.Enum):
+    NEW_PROJECT_POSTED = "NEW_PROJECT_POSTED"
+    PROJECT_UPDATED = "PROJECT_UPDATED"
+    PROJECT_CANCELLED = "PROJECT_CANCELLED"
+    PROPOSAL_RECEIVED = "PROPOSAL_RECEIVED"
+    PROPOSAL_ACCEPTED = "PROPOSAL_ACCEPTED"
+    PROPOSAL_REJECTED = "PROPOSAL_REJECTED"
+    CONTRACT_CREATED = "CONTRACT_CREATED"
+    CONTRACT_SIGNED = "CONTRACT_SIGNED"
+    CONTRACT_STARTED = "CONTRACT_STARTED"
+    CONTRACT_COMPLETED = "CONTRACT_COMPLETED"
+    CONTRACT_CANCELLED = "CONTRACT_CANCELLED"
+    MILESTONE_FUNDED = "MILESTONE_FUNDED"
+    MILESTONE_SUBMITTED = "MILESTONE_SUBMITTED"
+    MILESTONE_APPROVED = "MILESTONE_APPROVED"
+    MILESTONE_RELEASED = "MILESTONE_RELEASED"
+    MILESTONE_OVERDUE = "MILESTONE_OVERDUE"
+    PAYMENT_RECEIVED = "PAYMENT_RECEIVED"
+    PAYMENT_RELEASED = "PAYMENT_RELEASED"
+    PAYOUT_PROCESSED = "PAYOUT_PROCESSED"
+    PAYMENT_FAILED = "PAYMENT_FAILED"
+    NEW_MESSAGE = "NEW_MESSAGE"
+    REVIEW_RECEIVED = "REVIEW_RECEIVED"
+    ACCOUNT_VERIFIED = "ACCOUNT_VERIFIED"
+    PROFILE_UPDATED = "PROFILE_UPDATED"
+    SYSTEM_MAINTENANCE = "SYSTEM_MAINTENANCE"
 
-class NotificationPriority(str, enum.Enum):
-    LOW = "low"
-    NORMAL = "normal"
-    HIGH = "high"
-    URGENT = "urgent"
+class NotificationPriority(enum.Enum):
+    LOW = "LOW"
+    NORMAL = "NORMAL"
+    HIGH = "HIGH"
+    URGENT = "URGENT"
 
-class Notification(Base):
-    """User notifications for various platform events"""
+class Notification(Base, IDMixin, TimestampMixin, ReprMixin):
+    __tablename__ = "notifications"
+
+    # Foreign Key
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    type = Column(Enum(NotificationType), nullable=False)
-    priority = Column(Enum(NotificationPriority), default=NotificationPriority.NORMAL, nullable=False)
-    
+    # Notification Details
+    type = Column(String(50), nullable=False)
+    priority = Column(String(10), nullable=False, server_default="NORMAL")
     title = Column(String(200), nullable=False)
     message = Column(Text, nullable=False)
     payload = Column(JSON, nullable=True)
     
-    is_read = Column(Boolean, default=False, nullable=False)
-    is_sent_push = Column(Boolean, default=False, nullable=False)
-    is_sent_email = Column(Boolean, default=False, nullable=False)
+    # Status
+    is_read = Column(Boolean, nullable=False, server_default="false")
+    is_sent_push = Column(Boolean, nullable=False, server_default="false")
+    is_sent_email = Column(Boolean, nullable=False, server_default="false")
     
+    # Timeline
     read_at = Column(DateTime(timezone=True), nullable=True)
     sent_push_at = Column(DateTime(timezone=True), nullable=True)
     sent_email_at = Column(DateTime(timezone=True), nullable=True)
     expires_at = Column(DateTime(timezone=True), nullable=True)
-    
-    def __repr__(self):
-        return f"<Notification {self.type} for User {self.user_id}>"
-    
-    def mark_as_read(self):
-        """Mark notification as read"""
-        self.is_read = True
-        self.read_at = datetime.utcnow()
+
+    # Relationships
+    user = relationship("User", foreign_keys=[user_id])
