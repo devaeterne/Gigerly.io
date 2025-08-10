@@ -2,7 +2,7 @@
 from __future__ import annotations
 import enum
 from sqlalchemy import Column, Integer, String, Text, ForeignKey, Date, Boolean, Numeric, text
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship,Mapped, mapped_column
 from sqlalchemy.dialects.postgresql import ENUM, JSONB,JSON
 from .base import Base, IDMixin, TimestampMixin, ReprMixin
 
@@ -62,8 +62,11 @@ class Project(Base, IDMixin, TimestampMixin, ReprMixin):
     category = Column(String(100), nullable=True)
     subcategory = Column(String(100), nullable=True)
 
-    required_skills = mapped_column(
-        JSONB, nullable=False, default=list, server_default=text("'[]'::jsonb")
+    required_skills: Mapped[list[str]] = mapped_column(
+        JSONB,
+        nullable=False,
+        default=list,                         # Python tarafı default
+        server_default=text("'[]'::jsonb"),   # DB tarafı default
     )
     is_featured = Column(Boolean, nullable=False, server_default=text("false"))
     allows_proposals = Column(Boolean, nullable=False, server_default=text("true"))

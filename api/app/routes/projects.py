@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, or_, desc, asc, cast, String
 from sqlalchemy.orm import selectinload
+from app.core.database import get_session  
 
 from app.core.database import get_db
 from app.models import Project, ProjectStatus, User, UserRole
