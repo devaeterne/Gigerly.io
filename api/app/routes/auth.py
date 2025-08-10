@@ -9,7 +9,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from jose import JWTError, jwt
 from passlib.context import CryptContext
-import httpx
+import requests
+from cachecontrol import CacheControl
+#from cachecontrol.caches import DictCache
+from cachecontrol.heuristics import ExpiresAfter
+from google.oauth2 import id_token
+from google.auth.transport import requests as google_requests
 
 from app.core.database import get_db
 from app.core.redis import get_redis, RedisManager
@@ -27,6 +32,10 @@ import logging
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/auth")
+
+# Cached session for verifying Google ID tokens to reduce repeated JWKS downloads
+_cached_session = CacheControl(requests.Session())
+google_request = google_requests.Request(session=_cached_session)
 
 # Password hashing
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -76,17 +85,24 @@ async def authenticate_user(db: AsyncSession, email: str, password: str) -> User
     return user
 
 
-async def get_or_create_google_user(db: AsyncSession, id_token: str) -> User:
+async def get_or_create_google_user(db: AsyncSession, token: str) -> User:
     """Verify Google token and return existing or newly created user"""
-    async with httpx.AsyncClient() as client:
-        try:
-            response = await client.get(
-                f"https://www.googleapis.com/oauth2/v1/userinfo?access_token={id_token}"
-            )
-            response.raise_for_status()
-        except httpx.HTTPError:
-            raise UnauthorizedError("Invalid Google token")
-        google_user = response.json()
+    try:
+        id_info = id_token.verify_oauth2_token(
+            token, google_request, audience=settings.GOOGLE_CLIENT_ID
+        )
+    except ValueError:
+        raise UnauthorizedError("Invalid Google token")
+
+    google_user = {
+        "id": id_info.get("sub"),
+        "email": id_info.get("email"),
+        "verified_email": id_info.get("email_verified", False),
+        "name": id_info.get("name"),
+        "given_name": id_info.get("given_name"),
+        "family_name": id_info.get("family_name"),
+        "picture": id_info.get("picture"),
+    }
 
     if not google_user.get("email"):
         raise UnauthorizedError("Email not provided by Google")

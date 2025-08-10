@@ -36,3 +36,17 @@ async def test_login_wrong_password(client):
         "/auth/login", json={"email": payload["email"], "password": "badpass"}
     )
     assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_google_invalid_token_no_network(mocker, test_db):
+    from app.routes import auth as auth_module
+
+    mocker.patch.object(
+        auth_module.google_request,
+        "__call__",
+        side_effect=AssertionError("network call"),
+    )
+
+    with pytest.raises(auth_module.UnauthorizedError):
+        await auth_module.get_or_create_google_user(test_db, "invalid-token")

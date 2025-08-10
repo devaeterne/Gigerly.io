@@ -21,11 +21,16 @@ from .notification import (
 # Ratings like 4.75 -> DECIMAL(3,2)
 AverageRating = condecimal(max_digits=3, decimal_places=2, ge=0, le=5)
 
-class UserLite(BaseModel,ConfigDict):
+class UserLite(BaseModel):
     id: int
     email: EmailStr | None = None
     model_config = ConfigDict(from_attributes=True)
     display_name: str | None = None
+
+class ProfileLite(BaseModel):
+    display_name: Optional[str] = None
+    avatar_url: Optional[str] = None
+    model_config = ConfigDict(from_attributes=True)
    
 # -------- Core user schemas --------
 class UserBase(BaseModel):

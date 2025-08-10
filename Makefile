@@ -284,3 +284,11 @@ web: ## Start web only
 
 worker: ## Start background worker
 	docker-compose up worker
+
+.PHONY: test testcov
+
+test:
+	ENVIRONMENT=test pytest
+
+testcov:
+	ENVIRONMENT=test pytest --cov=app --cov-report=term-missing

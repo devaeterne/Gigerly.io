@@ -18,8 +18,8 @@ class Settings(BaseSettings):
     API_V1_STR: str = "/api/v1"
     DEBUG: bool = False
     ENVIRONMENT: str = "development"
-    ALLOWED_HOSTS: List[str] = ["localhost", "127.0.0.1"]
-    CORS_ORIGINS: List[str] = ["http://localhost:3000"]
+    ALLOWED_HOSTS: List[str] = ["*"]
+    CORS_ORIGINS: List[str] = []
     
     # Database
     DATABASE_URL: str

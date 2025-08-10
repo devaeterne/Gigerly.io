@@ -77,6 +77,15 @@ Modern, scalable gigerly.io marketplace built with **FastAPI** and **Next.js**.
                         └─────────────────┘
 ```
 
+## ⚙️ Background Worker Queues
+
+The background worker blocks on Redis lists to wait for jobs:
+
+- `notification_queue` – push notification payloads
+- `email_queue` – email payloads
+
+`BLPOP` uses a timeout of `0`, so the worker remains blocked until a job appears on either queue.
+
 ### Tech Stack
 
 **Backend:**

@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
+from app.core.redis import redis_manager
 from app.models import Project, ProjectStatus, User, UserRole
 from app.schemas.project import (
     ProjectCreate, ProjectUpdate, ProjectResponse, ProjectListResponse
@@ -214,10 +215,9 @@ async def get_project(
                 current_user.role not in [UserRole.admin.value, UserRole.moderator.value]):
             raise ForbiddenError("Project is not publicly available")
 
-    # Sahibi değilse view_count +1
+    # Sahibi değilse view counter'ı Redis'te artır
     if not current_user or current_user.id != project.customer_id:
-        project.view_count += 1
-        await session.commit()
+        await redis_manager.incr(f"project:{project_id}:views")
 
     if project.required_skills is None:
         project.required_skills = []
@@ -330,7 +330,7 @@ async def publish_project(
     if current_user.id != project.customer_id:
         raise ForbiddenError("You can only publish your own projects")
 
-    if project.status != ProjectStatus.draft.value:
+    if project.status != ProjectStatus.draft:
         raise ForbiddenError("Only draft projects can be published")
 
     project.status = ProjectStatus.open.value
@@ -347,29 +347,23 @@ async def publish_project(
 @router.post("/{project_id}/close")
 async def close_project(
     project_id: int,
-    session: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_customer),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_customer)
 ):
-    """Close project (stop accepting proposals)"""
-
-    res = await session.execute(select(Project).where(Project.id == project_id))
-    project = res.scalar_one_or_none()
+    result = await db.execute(select(Project).where(Project.id == project_id))
+    project = result.scalar_one_or_none()
     if not project:
         raise NotFoundError("Project", project_id)
-
     if current_user.id != project.customer_id:
         raise ForbiddenError("You can only close your own projects")
 
-    if project.status not in [ProjectStatus.open.value, ProjectStatus.in_progress.value]:
+    cur_status = project.status.value if isinstance(project.status, ProjectStatus) else str(project.status)
+
+    if cur_status not in {ProjectStatus.open.value, ProjectStatus.in_progress.value}:
         raise ForbiddenError("Only open or in-progress projects can be closed")
 
-    project.status = ProjectStatus.closed.value
+    project.status = ProjectStatus.closed if isinstance(project.status, ProjectStatus) else ProjectStatus.closed.value
     project.allows_proposals = False
-    await session.commit()
-
-    logger.info(
-        "Project closed: %s (ID: %s) by %s",
-        project.title, project.id, current_user.email
-    )
-
+    await db.commit()
+    await db.refresh(project)
     return {"message": "Project closed successfully"}
