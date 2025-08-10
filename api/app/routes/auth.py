@@ -72,58 +72,115 @@ async def authenticate_user(db: AsyncSession, email: str, password: str) -> User
     
     if not user.is_active:
         raise UnauthorizedError("Account is disabled")
-    
+
+    return user
+
+
+async def get_or_create_google_user(db: AsyncSession, id_token: str) -> User:
+    """Verify Google token and return existing or newly created user"""
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.get(
+                f"https://www.googleapis.com/oauth2/v1/userinfo?access_token={id_token}"
+            )
+            response.raise_for_status()
+        except httpx.HTTPError:
+            raise UnauthorizedError("Invalid Google token")
+        google_user = response.json()
+
+    if not google_user.get("email"):
+        raise UnauthorizedError("Email not provided by Google")
+
+    result = await db.execute(
+        select(User).where(
+            (User.email == google_user["email"]) | (User.google_sub == google_user["id"])
+        )
+    )
+    user = result.scalar_one_or_none()
+
+    if user:
+        if not user.google_sub:
+            user.google_sub = google_user["id"]
+            user.google_email_verified = google_user.get("verified_email", False)
+            user.is_verified = True
+            user.email_verified_at = datetime.utcnow()
+        user.last_login_at = datetime.utcnow()
+        await db.commit()
+        await db.refresh(user)
+        return user
+
+    user = User(
+        email=google_user["email"],
+        google_sub=google_user["id"],
+        google_email_verified=google_user.get("verified_email", False),
+        role=UserRole.freelancer,
+        status=UserStatus.active,
+        is_active=True,
+        is_verified=True,
+        email_verified_at=datetime.utcnow(),
+        last_login_at=datetime.utcnow(),
+    )
+    db.add(user)
+    await db.flush()
+
+    profile = UserProfile(
+        user_id=user.id,
+        display_name=google_user.get("name"),
+        first_name=google_user.get("given_name"),
+        last_name=google_user.get("family_name"),
+        avatar_url=google_user.get("picture"),
+        currency="USD",
+        is_available=True,
+        is_profile_public=True,
+        total_earnings=0,
+        completed_projects=0,
+        total_reviews=0,
+    )
+    db.add(profile)
+    await db.commit()
+    await db.refresh(user)
+    logger.info(f"New Google user registered: {user.email} (ID: {user.id})")
     return user
 
 @router.post("/register", response_model=UserResponse)
 async def register(
     user_data: UserCreate,
     db: AsyncSession = Depends(get_db),
-    _: dict = Depends(rate_limit_check)
+    _: dict = Depends(rate_limit_check),
 ):
     """Register a new user"""
-    
-    # Check if user already exists
+
     result = await db.execute(select(User).where(User.email == user_data.email))
     if result.scalar_one_or_none():
         raise ConflictError("Email already registered")
-    
-    # Validate password if provided
+
     if not user_data.password and not user_data.google_sub:
         raise ValidationError("Password or Google authentication required")
-    
-    # Create user - FIX: Enum değerlerini düzgün çevir
+
     user_dict = user_data.dict(exclude_unset=True)
     if user_data.password:
         user_dict["password_hash"] = hash_password(user_data.password)
         del user_dict["password"]
-    
-    # ✅ DÜZELTME: Enum değerlerini database formatına çevir
+
     if "role" in user_dict and hasattr(user_dict["role"], "value"):
-        user_dict["role"] = user_dict["role"].value  #"admin"
+        user_dict["role"] = user_dict["role"].value
     elif "role" in user_dict:
-        # Eğer zaten string ise, küçük harfe çevir
         user_dict["role"] = user_dict["role"].lower()
-    
-    # Set default values
-    user_dict.update({
-        "status": "active",  # ✅ Direkt string kullan
-        "is_active": True,
-        "is_verified": bool(user_data.google_sub),
-        "email_verified_at": datetime.utcnow() if user_data.google_sub else None
-    })
-    
+
+    user_dict.update(
+        {
+            "status": "active",
+            "is_active": True,
+            "is_verified": bool(user_data.google_sub),
+            "email_verified_at": datetime.utcnow() if user_data.google_sub else None,
+        }
+    )
+
     user = User(**user_dict)
     db.add(user)
-    await db.flush()
-    # auth.py register fonksiyonunun sonunda olması gereken:
     await db.commit()
     await db.refresh(user)
-
-# ✅ Bu satır eksik olabilir:
     return user
-    
-    # Geri kalan kod aynı kalır...
 
 @router.post("/login", response_model=LoginResponse)
 async def login(
@@ -212,93 +269,26 @@ async def refresh_token(
 async def google_auth(
     google_data: GoogleAuthRequest,
     db: AsyncSession = Depends(get_db),
-    redis: RedisManager = Depends(get_redis)
+    redis: RedisManager = Depends(get_redis),
 ):
     """Authenticate with Google OAuth token"""
-    
-    # Verify Google token
-    async with httpx.AsyncClient() as client:
-        try:
-            response = await client.get(
-                f"https://www.googleapis.com/oauth2/v1/userinfo?access_token={google_data.google_token}"
-            )
-            response.raise_for_status()
-            google_user = response.json()
-            
-        except httpx.HTTPError:
-            raise UnauthorizedError("Invalid Google token")
-    
-    if not google_user.get("email"):
-        raise UnauthorizedError("Email not provided by Google")
-    
-    # Check if user exists
-    result = await db.execute(
-        select(User).where(
-            (User.email == google_user["email"]) | 
-            (User.google_sub == google_user["id"])
-        )
-    )
-    user = result.scalar_one_or_none()
-    
-    if user:
-        # Update Google info if needed
-        if not user.google_sub:
-            user.google_sub = google_user["id"]
-            user.google_email_verified = google_user.get("verified_email", False)
-            user.is_verified = True
-            user.email_verified_at = datetime.utcnow()
-        
-        user.last_login_at = datetime.utcnow()
-        await db.commit()
-        
-    else:
-        # Create new user
-        user = User(
-            email=google_user["email"],
-            google_sub=google_user["id"],
-            google_email_verified=google_user.get("verified_email", False),
-            role=UserRole.freelancer,
-            status=UserStatus.active,
-            is_active=True,
-            is_verified=True,
-            email_verified_at=datetime.utcnow(),
-            last_login_at=datetime.utcnow()
-        )
-        db.add(user)
-        await db.flush()
-        
-        # Create profile with Google info
-        profile = UserProfile(
-            user_id=user.id,
-            display_name=google_user.get("name"),
-            first_name=google_user.get("given_name"),
-            last_name=google_user.get("family_name"),
-            avatar_url=google_user.get("picture"),
-            currency="USD",
-            is_available=True,
-            is_profile_public=True,
-            total_earnings=0,
-            completed_projects=0,
-            total_reviews=0
-        )
-        db.add(profile)
-        await db.commit()
-        await db.refresh(user)
-        
-        logger.info(f"New Google user registered: {user.email} (ID: {user.id})")
-    
-    # Create tokens
+
+    user = await get_or_create_google_user(db, google_data.id_token)
+
     access_token = create_access_token(data={"sub": str(user.id)})
     refresh_token = create_refresh_token(data={"sub": str(user.id)})
-    
-    # Store refresh token
-    await redis.set(f"refresh_token:{user.id}", refresh_token, expire=settings.JWT_REFRESH_TOKEN_EXPIRE_DAYS * 24 * 3600)
-    
+
+    await redis.set(
+        f"refresh_token:{user.id}",
+        refresh_token,
+        expire=settings.JWT_REFRESH_TOKEN_EXPIRE_DAYS * 24 * 3600,
+    )
+
     return LoginResponse(
         access_token=access_token,
         refresh_token=refresh_token,
         expires_in=settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-        user=user
+        user=user,
     )
 
 @router.post("/logout")
