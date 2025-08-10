@@ -4,7 +4,7 @@
 from typing import List, Optional
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_, or_, desc, asc
+from sqlalchemy import select, and_, or_, desc, asc, cast, String
 from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
@@ -37,7 +37,7 @@ async def create_project(
     project_dict = project_data.dict(exclude_unset=True)
     project_dict.update({
         "customer_id": current_user.id,
-        "status": ProjectStatus.DRAFT,
+        "status": ProjectStatus.draft.value,  # Use .value to get the string value
         "view_count": 0,
         "proposal_count": 0,
         "is_featured": False,
@@ -75,20 +75,20 @@ async def list_projects(
     filters = []
     
     # Only show open projects to non-customers, unless it's admin/moderator
-    if not current_user or current_user.role not in [UserRole.ADMIN, UserRole.MODERATOR, UserRole.CUSTOMER]:
-        filters.append(Project.status == ProjectStatus.OPEN)
-    elif current_user and current_user.role == UserRole.CUSTOMER:
+    if not current_user or current_user.role not in ["admin", "moderator", "customer"]:
+        filters.append(cast(Project.status, String) == ProjectStatus.open.value)
+    elif current_user and current_user.role == "customer":
         # Customers can see their own projects in any status, others only open
         filters.append(
             or_(
                 Project.customer_id == current_user.id,
-                Project.status == ProjectStatus.OPEN
+                Project.status == ProjectStatus.open.value
             )
         )
     
     # Apply other filters
     if status:
-        filters.append(Project.status == status)
+        filters.append(Project.status == status.value)  # Use .value for enum
     if category:
         filters.append(Project.category == category)
     if search:
@@ -143,7 +143,7 @@ async def list_projects(
             "proposal_count": project.proposal_count,
             "created_at": project.created_at,
             "customer_name": project.customer.profile.display_name if project.customer and project.customer.profile else None,
-            "budget_display": project.budget_display
+            "budget_display": project.budget_display if hasattr(project, 'budget_display') else None
         }
         project_list.append(ProjectListResponse(**project_dict))
     
@@ -181,11 +181,11 @@ async def get_project(
         raise NotFoundError("Project", project_id)
     
     # Check permissions
-    if project.status != ProjectStatus.OPEN:
+    if project.status != ProjectStatus.open.value:
         if not current_user:
             raise ForbiddenError("Project is not publicly available")
         if (current_user.id != project.customer_id and 
-            current_user.role not in [UserRole.ADMIN, UserRole.MODERATOR]):
+            current_user.role not in [UserRole.admin.value, UserRole.moderator.value]):
             raise ForbiddenError("Project is not publicly available")
     
     # Increment view count (only for non-owners)
@@ -212,12 +212,15 @@ async def update_project(
     
     # Check permissions
     if (current_user.id != project.customer_id and 
-        current_user.role not in [UserRole.ADMIN, UserRole.MODERATOR]):
+        current_user.role not in [UserRole.admin.value, UserRole.moderator.value]):
         raise ForbiddenError("You can only update your own projects")
     
     # Update project fields
     update_data = project_data.dict(exclude_unset=True)
     for field, value in update_data.items():
+        # If the value is an enum, get its string value
+        if hasattr(value, 'value'):
+            value = value.value
         setattr(project, field, value)
     
     await db.commit()
@@ -243,7 +246,7 @@ async def delete_project(
     
     # Check permissions
     if (current_user.id != project.customer_id and 
-        current_user.role not in [UserRole.ADMIN, UserRole.MODERATOR]):
+        current_user.role not in [UserRole.admin.value, UserRole.moderator.value]):
         raise ForbiddenError("You can only delete your own projects")
     
     # Check if project has active contracts
@@ -252,7 +255,7 @@ async def delete_project(
         select(Contract).where(
             and_(
                 Contract.project_id == project_id,
-                Contract.status.in_([ContractStatus.ACTIVE, ContractStatus.PAUSED])
+                Contract.status.in_([ContractStatus.active.value, ContractStatus.paused.value])
             )
         )
     )
@@ -285,10 +288,10 @@ async def publish_project(
     if current_user.id != project.customer_id:
         raise ForbiddenError("You can only publish your own projects")
     
-    if project.status != ProjectStatus.DRAFT:
+    if project.status != ProjectStatus.draft.value:
         raise ForbiddenError("Only draft projects can be published")
     
-    project.status = ProjectStatus.OPEN
+    project.status = ProjectStatus.open.value
     await db.commit()
     
     logger.info(f"Project published: {project.title} (ID: {project.id}) by {current_user.email}")
@@ -312,10 +315,10 @@ async def close_project(
     if current_user.id != project.customer_id:
         raise ForbiddenError("You can only close your own projects")
     
-    if project.status not in [ProjectStatus.OPEN, ProjectStatus.IN_PROGRESS]:
+    if project.status not in [ProjectStatus.open.value, ProjectStatus.in_progress.value]:
         raise ForbiddenError("Only open or in-progress projects can be closed")
     
-    project.status = ProjectStatus.CLOSED
+    project.status = ProjectStatus.closed.value
     project.allows_proposals = False
     await db.commit()
     

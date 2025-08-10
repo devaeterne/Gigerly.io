@@ -4,18 +4,20 @@ from __future__ import annotations
 import enum
 from sqlalchemy import Column, Integer, String, Text, ForeignKey, Numeric, Date, DateTime
 from sqlalchemy.orm import relationship
-from sqlalchemy.sql import func
 
 from .base import Base, IDMixin, TimestampMixin, ReprMixin
 
+# ========== ENUMS ==========
 class MilestoneStatus(enum.Enum):
-    PENDING = "PENDING"
-    FUNDED = "FUNDED"
-    IN_PROGRESS = "IN_PROGRESS"
-    SUBMITTED = "SUBMITTED"
-    APPROVED = "APPROVED"
-    RELEASED = "RELEASED"
-    DISPUTED = "DISPUTED"
+    pending = "pending"
+    funded = "funded"
+    in_progress = "in_progress"
+    submitted = "submitted"
+    approved = "approved"
+    released = "released"
+    disputed = "disputed"
+
+# ========== MODELS ==========
 
 class Milestone(Base, IDMixin, TimestampMixin, ReprMixin):
     __tablename__ = "milestones"
@@ -37,7 +39,7 @@ class Milestone(Base, IDMixin, TimestampMixin, ReprMixin):
     estimated_hours = Column(Integer, nullable=True)
     
     # Status
-    status = Column(String(20), nullable=False, server_default="PENDING")
+    status = Column(String(20), nullable=False, server_default="pending")
     
     # Milestone Workflow
     funded_at = Column(DateTime(timezone=True), nullable=True)

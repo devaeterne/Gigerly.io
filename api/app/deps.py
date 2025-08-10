@@ -2,7 +2,7 @@
 """FastAPI dependencies for authentication, database, etc."""
 
 from typing import Generator, Optional
-from fastapi import Depends, HTTPException, status, Request
+from fastapi import Depends, HTTPException, status, Request, Query
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 from jose import JWTError, jwt
@@ -33,11 +33,13 @@ async def get_current_user(
             algorithms=[settings.JWT_ALGORITHM]
         )
         
-        user_id: int = payload.get("sub")
-        if user_id is None:
+        user_id_str = payload.get("sub")  # ✅ String olarak al
+        if user_id_str is None:
             raise UnauthorizedError("Invalid token")
+            
+        user_id: int = int(user_id_str)  # ✅ String'i int'e çevir
         
-    except JWTError:
+    except (JWTError, ValueError):  # ✅ ValueError'u da yakala
         raise UnauthorizedError("Invalid token")
     
     # Get user from database
@@ -72,11 +74,11 @@ def require_roles(*allowed_roles: UserRole):
     return role_checker
 
 # Role-specific dependencies
-require_admin = require_roles(UserRole.ADMIN)
-require_moderator = require_roles(UserRole.ADMIN, UserRole.MODERATOR)
-require_helpdesk = require_roles(UserRole.ADMIN, UserRole.MODERATOR, UserRole.HELPDESK)
-require_freelancer = require_roles(UserRole.FREELANCER, UserRole.ADMIN)
-require_customer = require_roles(UserRole.CUSTOMER, UserRole.ADMIN)
+require_admin = require_roles(UserRole.admin)
+require_moderator = require_roles(UserRole.admin, UserRole.moderator)
+require_helpdesk = require_roles(UserRole.admin, UserRole.moderator, UserRole.helpdesk)
+require_freelancer = require_roles(UserRole.freelancer, UserRole.admin)
+require_customer = require_roles(UserRole.customer, UserRole.admin)
 
 async def get_optional_user(
     db: AsyncSession = Depends(get_db),
@@ -136,6 +138,21 @@ class PaginationParams:
         self.size = min(max(1, size), max_size)
         self.offset = (self.page - 1) * self.size
 
-def get_pagination() -> PaginationParams:
+# Pagination dependency
+class PaginationParams:
+    def __init__(
+        self,
+        page: int = 1,
+        size: int = settings.DEFAULT_PAGE_SIZE,
+        max_size: int = settings.MAX_PAGE_SIZE
+    ):
+        self.page = max(1, page)
+        self.size = min(max(1, size), max_size)
+        self.offset = (self.page - 1) * self.size
+
+def get_pagination(
+    page: int = Query(1, ge=1, description="Page number"),
+    size: int = Query(20, ge=1, le=100, description="Page size")
+) -> PaginationParams:
     """Get pagination parameters"""
-    return PaginationParams
+    return PaginationParams(page=page, size=size)

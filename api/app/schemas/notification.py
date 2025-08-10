@@ -14,7 +14,7 @@ from app.models import NotificationType, NotificationPriority
 class NotificationCreate(BaseModel):
     user_id: int
     type: NotificationType
-    priority: NotificationPriority = NotificationPriority.NORMAL
+    priority: NotificationPriority = NotificationPriority.normal
     title: str = Field(..., max_length=200)
     message: str
     payload: Optional[Dict] = None

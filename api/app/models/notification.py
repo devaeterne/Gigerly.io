@@ -8,62 +8,71 @@ from sqlalchemy.sql import func
 
 from .base import Base, IDMixin, TimestampMixin, ReprMixin
 
-class NotificationType(enum.Enum):
-    NEW_PROJECT_POSTED = "NEW_PROJECT_POSTED"
-    PROJECT_UPDATED = "PROJECT_UPDATED"
-    PROJECT_CANCELLED = "PROJECT_CANCELLED"
-    PROPOSAL_RECEIVED = "PROPOSAL_RECEIVED"
-    PROPOSAL_ACCEPTED = "PROPOSAL_ACCEPTED"
-    PROPOSAL_REJECTED = "PROPOSAL_REJECTED"
-    CONTRACT_CREATED = "CONTRACT_CREATED"
-    CONTRACT_SIGNED = "CONTRACT_SIGNED"
-    CONTRACT_STARTED = "CONTRACT_STARTED"
-    CONTRACT_COMPLETED = "CONTRACT_COMPLETED"
-    CONTRACT_CANCELLED = "CONTRACT_CANCELLED"
-    MILESTONE_FUNDED = "MILESTONE_FUNDED"
-    MILESTONE_SUBMITTED = "MILESTONE_SUBMITTED"
-    MILESTONE_APPROVED = "MILESTONE_APPROVED"
-    MILESTONE_RELEASED = "MILESTONE_RELEASED"
-    MILESTONE_OVERDUE = "MILESTONE_OVERDUE"
-    PAYMENT_RECEIVED = "PAYMENT_RECEIVED"
-    PAYMENT_RELEASED = "PAYMENT_RELEASED"
-    PAYOUT_PROCESSED = "PAYOUT_PROCESSED"
-    PAYMENT_FAILED = "PAYMENT_FAILED"
-    NEW_MESSAGE = "NEW_MESSAGE"
-    REVIEW_RECEIVED = "REVIEW_RECEIVED"
-    ACCOUNT_VERIFIED = "ACCOUNT_VERIFIED"
-    PROFILE_UPDATED = "PROFILE_UPDATED"
-    SYSTEM_MAINTENANCE = "SYSTEM_MAINTENANCE"
+# ========== ENUMS ==========
+class NotificationType(str, enum.Enum):
+    new_project_posted = "new_project_posted"
+    project_updated = "project_updated"
+    project_cancelled = "project_cancelled"
+    proposal_received = "proposal_received"
+    proposal_accepted = "proposal_accepted"
+    proposal_rejected = "proposal_rejected"
+    contract_created = "contract_created"
+    contract_signed = "contract_signed"
+    contract_started = "contract_started"
+    contract_completed = "contract_completed"
+    contract_cancelled = "contract_cancelled"
+    milestone_funded = "milestone_funded"
+    milestone_submitted = "milestone_submitted"
+    milestone_approved = "milestone_approved"
+    milestone_released = "milestone_released"
+    milestone_overdue = "milestone_overdue"
+    payment_received = "payment_received"
+    payment_released = "payment_released"
+    payout_processed = "payout_processed"
+    payment_failed = "payment_failed"
+    new_message = "new_message"
+    review_received = "review_received"
+    account_verified = "account_verified"
+    profile_updated = "profile_updated"
+    system_maintenance = "system_maintenance"
 
-class NotificationPriority(enum.Enum):
-    LOW = "LOW"
-    NORMAL = "NORMAL"
-    HIGH = "HIGH"
-    URGENT = "URGENT"
+
+class NotificationPriority(str, enum.Enum):
+    low = "low"
+    normal = "normal"
+    high = "high"
+    urgent = "urgent"
+
+# ========== MODELS ==========
 
 class Notification(Base, IDMixin, TimestampMixin, ReprMixin):
     __tablename__ = "notifications"
 
-    # Foreign Key
+    # --- Foreign Key ---
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     
-    # Notification Details
+    # --- Notification Details ---
     type = Column(String(50), nullable=False)
-    priority = Column(String(10), nullable=False, server_default="NORMAL")
+    priority = Column(String(10), nullable=False, server_default="normal")
     title = Column(String(200), nullable=False)
     message = Column(Text, nullable=False)
     payload = Column(JSON, nullable=True)
     
-    # Status
+    # --- Status ---
     is_read = Column(Boolean, nullable=False, server_default="false")
     is_sent_push = Column(Boolean, nullable=False, server_default="false")
     is_sent_email = Column(Boolean, nullable=False, server_default="false")
     
-    # Timeline
+    # --- Timeline ---
     read_at = Column(DateTime(timezone=True), nullable=True)
     sent_push_at = Column(DateTime(timezone=True), nullable=True)
     sent_email_at = Column(DateTime(timezone=True), nullable=True)
     expires_at = Column(DateTime(timezone=True), nullable=True)
 
-    # Relationships
+    # --- relationships ---
     user = relationship("User", foreign_keys=[user_id])
+    
+    def mark_as_read(self):
+        """Mark notification as read"""
+        self.is_read = True
+        self.read_at = func.now()

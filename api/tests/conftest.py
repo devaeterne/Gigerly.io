@@ -71,8 +71,8 @@ async def test_user(test_db: AsyncSession) -> User:
     """Create a test user"""
     user = User(
         email="test@example.com",
-        role=UserRole.FREELANCER,
-        status=UserStatus.ACTIVE,
+        role=UserRole.freelancer,
+        status=UserStatus.active,
         is_active=True,
         is_verified=True
     )
@@ -101,8 +101,8 @@ async def test_customer(test_db: AsyncSession) -> User:
     """Create a test customer"""
     user = User(
         email="customer@example.com",
-        role=UserRole.CUSTOMER,
-        status=UserStatus.ACTIVE,
+        role=UserRole.customer,
+        status=UserStatus.active,
         is_active=True,
         is_verified=True
     )
@@ -130,8 +130,8 @@ async def test_admin(test_db: AsyncSession) -> User:
     """Create a test admin"""
     user = User(
         email="admin@example.com",
-        role=UserRole.ADMIN,
-        status=UserStatus.ACTIVE,
+        role=UserRole.admin,
+        status=UserStatus.active,
         is_active=True,
         is_verified=True
     )

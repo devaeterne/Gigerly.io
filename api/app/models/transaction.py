@@ -8,29 +8,32 @@ from sqlalchemy.sql import func
 
 from .base import Base, IDMixin, TimestampMixin, ReprMixin
 
+# ========== ENUMS ==========
 class TransactionType(enum.Enum):
-    FUND = "FUND"
-    RELEASE = "RELEASE"
-    PAYOUT = "PAYOUT"
-    REFUND = "REFUND"
-    FEE = "FEE"
-    ESCROW = "ESCROW"
-    WITHDRAWAL = "WITHDRAWAL"
+    fund = "fund"
+    release = "release"
+    payout = "payout"
+    refund = "refund"
+    fee = "fee"
+    escrow = "escrow"
+    withdrawal = "withdrawal"
 
 class TransactionStatus(enum.Enum):
-    PENDING = "PENDING"
-    PROCESSING = "PROCESSING"
-    SUCCESS = "SUCCESS"
-    FAILED = "FAILED"
-    CANCELLED = "CANCELLED"
-    REFUNDED = "REFUNDED"
+    pending = "pending"
+    processing = "processing"
+    success = "success"
+    failed = "failed"
+    cancelled = "cancelled"
+    refunded = "refunded"
 
 class PaymentProvider(enum.Enum):
-    PAYONEER = "PAYONEER"
-    STRIPE = "STRIPE"
-    PAYPAL = "PAYPAL"
-    BANK_TRANSFER = "BANK_TRANSFER"
-    INTERNAL = "INTERNAL"
+    payoneer = "payoneer"
+    stripe = "stripe"
+    paypal = "paypal"
+    bank_transfer = "bank_transfer"
+    interval = "interval"
+
+# ========== MODELS ==========
 
 class Transaction(Base, IDMixin, TimestampMixin, ReprMixin):
     __tablename__ = "transactions"
@@ -51,7 +54,7 @@ class Transaction(Base, IDMixin, TimestampMixin, ReprMixin):
     provider_reference = Column(String(255), nullable=True)
     
     # Status
-    status = Column(String(20), nullable=False, server_default="PENDING")
+    status = Column(String(20), nullable=False, server_default="pending")
     description = Column(Text, nullable=True)
     extra_data = Column(JSON, nullable=True)
     

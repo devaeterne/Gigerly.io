@@ -148,7 +148,7 @@ async def get_user(
         raise NotFoundError("User", user_id)
     
     # Check permissions
-    if current_user.id != user_id and current_user.role not in [UserRole.ADMIN, UserRole.MODERATOR]:
+    if current_user.role not in ["admin", "moderator"]:
         # Only show public profiles to other users
         if not user.profile or not user.profile.is_profile_public:
             raise ForbiddenError("Profile is private")

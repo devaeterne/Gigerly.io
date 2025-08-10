@@ -6,6 +6,8 @@ from sqlalchemy.orm import relationship
 
 from .base import Base, IDMixin, TimestampMixin, ReprMixin
 
+# ========== MODELS ==========
+
 class Review(Base, IDMixin, TimestampMixin, ReprMixin):
     __tablename__ = "reviews"
 
@@ -15,7 +17,7 @@ class Review(Base, IDMixin, TimestampMixin, ReprMixin):
     ratee_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     
     # Review Details
-    rating = Column(Numeric(2, 1), nullable=False)  # 0.0 to 5.0
+    overall_rating = Column(Numeric(2, 1), nullable=False)  # 0.0 to 5.0
     title = Column(String(200), nullable=True)
     comment = Column(Text, nullable=True)
     

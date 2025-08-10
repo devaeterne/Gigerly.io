@@ -29,10 +29,10 @@ async def admin_dashboard(
         select(func.count(User.id)).where(User.is_active == True)
     )
     freelancers = await db.execute(
-        select(func.count(User.id)).where(User.role == UserRole.FREELANCER)
+        select(func.count(User.id)).where(User.role == UserRole.freelancer)
     )
     customers = await db.execute(
-        select(func.count(User.id)).where(User.role == UserRole.CUSTOMER)
+        select(func.count(User.id)).where(User.role == UserRole.customer)
     )
     
     # Project statistics
@@ -185,7 +185,7 @@ async def suspend_user(
     if user.id == current_user.id:
         raise ForbiddenError("Cannot suspend your own account")
     
-    user.status = UserStatus.SUSPENDED
+    user.status = UserStatus.suspended
     user.is_active = False
     await db.commit()
     

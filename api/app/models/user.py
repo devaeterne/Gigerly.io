@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import enum
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text, ForeignKey, Numeric
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text, ForeignKey, Numeric, Enum
 from sqlalchemy import UniqueConstraint
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -10,19 +10,19 @@ from sqlalchemy.sql import func
 from .base import Base, IDMixin, TimestampMixin, ReprMixin
 
 # ========== ENUMS ==========
+# Migration'daki enum değerleriyle tam uyumlu olmalı
 class UserRole(enum.Enum):
-    CUSTOMER = "CUSTOMER"
-    FREELANCER = "FREELANCER"
-    ADMIN = "ADMIN"
-    MODERATOR = "MODERATOR"
-    HELPDESK = "HELPDESK"
+    admin = "admin"           # Migration: 'admin'
+    moderator = "moderator"   # Migration: 'moderator' 
+    helpdesk = "helpdesk"     # Migration: 'helpdesk'
+    freelancer = "freelancer" # Migration: 'freelancer'
+    customer = "customer"     # Migration: 'customer'
 
 class UserStatus(enum.Enum):
-    ACTIVE = "ACTIVE"
-    INACTIVE = "INACTIVE"
-    SUSPENDED = "SUSPENDED"
-    BANNED = "BANNED"
-    PENDING_VERIFICATION = "PENDING_VERIFICATION"
+    active = "active"         # Migration: 'active'
+    inactive = "inactive"     # Migration: 'inactive'
+    suspended = "suspended"   # Migration: 'suspended'
+    banned = "banned"         # Migration: 'banned'
 
 # ========== MODELS ==========
 
@@ -36,10 +36,11 @@ class User(Base, IDMixin, TimestampMixin, ReprMixin):
     email = Column(String(255), nullable=False)
     password_hash = Column(String(255), nullable=True)
     google_sub = Column(String(255), nullable=True)
-    google_email_verified = Column(Boolean, server_default="false", nullable=False)
+    google_email_verified = Column(Boolean, nullable=True)  # Migration'da nullable=True
 
-    role = Column(String(50), nullable=False, server_default="CUSTOMER")
-    status = Column(String(50), nullable=False, server_default="ACTIVE")
+    # ✅ ENUM türlerini kullan (String değil!)
+    role = Column(Enum(UserRole), nullable=False, server_default="customer")
+    status = Column(Enum(UserStatus), nullable=False, server_default="active")
 
     is_active = Column(Boolean, nullable=False, server_default="true")
     is_verified = Column(Boolean, nullable=False, server_default="false")
@@ -55,7 +56,6 @@ class User(Base, IDMixin, TimestampMixin, ReprMixin):
         cascade="all, delete-orphan",
     )
 
-    # ÖNEMLİ: Project tarafında 'customer' isimli ilişki var.
     projects_posted = relationship(
         "Project",
         back_populates="customer",
@@ -63,7 +63,6 @@ class User(Base, IDMixin, TimestampMixin, ReprMixin):
         cascade="all, delete-orphan",
     )
 
-    # Proposal tarafında 'freelancer' ilişki adı var.
     proposals = relationship(
         "Proposal",
         back_populates="freelancer",
@@ -71,7 +70,6 @@ class User(Base, IDMixin, TimestampMixin, ReprMixin):
         cascade="all, delete-orphan",
     )
 
-    # Device tokens for push notifications
     device_tokens = relationship(
         "DeviceToken",
         back_populates="user",
@@ -94,7 +92,6 @@ class UserProfile(Base, IDMixin, TimestampMixin, ReprMixin):
     last_name = Column(String(50), nullable=True)
     title = Column(String(200), nullable=True)
     bio = Column(Text, nullable=True)
-    skills = Column(Text, nullable=True)  # JSON string or simple text
     
     # Financial info
     hourly_rate = Column(Numeric(10, 2), nullable=True)

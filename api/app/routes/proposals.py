@@ -39,7 +39,7 @@ async def create_proposal(
     if not project:
         raise NotFoundError("Project", proposal_data.project_id)
     
-    if project.status != ProjectStatus.OPEN:
+    if project.status != ProjectStatus.open:
         raise ValidationError("Project is not accepting proposals")
     
     if not project.allows_proposals:
@@ -68,7 +68,7 @@ async def create_proposal(
     proposal_dict = proposal_data.dict(exclude_unset=True)
     proposal_dict.update({
         "freelancer_id": current_user.id,
-        "status": ProposalStatus.PENDING
+        "status": ProposalStatus.pending
     })
     
     proposal = Proposal(**proposal_dict)
@@ -103,14 +103,14 @@ async def list_proposals(
     # Apply filters based on user role
     filters = []
     
-    if current_user.role == UserRole.FREELANCER:
+    if current_user.role == UserRole.freelancer:
         # Freelancers see only their own proposals
         filters.append(Proposal.freelancer_id == current_user.id)
-    elif current_user.role == UserRole.CUSTOMER:
+    elif current_user.role == UserRole.customer:
         # Customers see proposals for their projects
         query = query.join(Project)
         filters.append(Project.customer_id == current_user.id)
-    elif current_user.role not in [UserRole.ADMIN, UserRole.MODERATOR]:
+    elif current_user.role not in [UserRole.admin, UserRole.moderator]:
         raise ForbiddenError("Insufficient permissions")
     
     # Apply additional filters
@@ -118,13 +118,13 @@ async def list_proposals(
         filters.append(Proposal.project_id == project_id)
         
         # Additional permission check for specific project
-        if current_user.role not in [UserRole.ADMIN, UserRole.MODERATOR]:
+        if current_user.role not in [UserRole.admin, UserRole.moderator]:
             project_result = await db.execute(select(Project).where(Project.id == project_id))
             project = project_result.scalar_one_or_none()
             if not project:
                 raise NotFoundError("Project", project_id)
             
-            if (current_user.role == UserRole.CUSTOMER and project.customer_id != current_user.id):
+            if (current_user.role == UserRole.customer and project.customer_id != current_user.id):
                 raise ForbiddenError("You can only view proposals for your own projects")
     
     if status:
@@ -135,7 +135,7 @@ async def list_proposals(
     
     # Count total
     count_query = select(Proposal)
-    if current_user.role == UserRole.CUSTOMER and not project_id:
+    if current_user.role == UserRole.customer and not project_id:
         count_query = count_query.join(Project)
     if filters:
         count_query = count_query.where(and_(*filters))
@@ -202,7 +202,7 @@ async def get_proposal(
         raise NotFoundError("Proposal", proposal_id)
     
     # Check permissions
-    if current_user.role not in [UserRole.ADMIN, UserRole.MODERATOR]:
+    if current_user.role not in [UserRole.admin, UserRole.moderator]:
         if (current_user.id != proposal.freelancer_id and 
             current_user.id != proposal.project.customer_id):
             raise ForbiddenError("You can only view your own proposals or proposals for your projects")
@@ -231,7 +231,7 @@ async def update_proposal(
     if current_user.id != proposal.freelancer_id:
         raise ForbiddenError("You can only update your own proposals")
     
-    if proposal.status != ProposalStatus.PENDING:
+    if proposal.status != ProposalStatus.pending:
         raise ValidationError("Only pending proposals can be updated")
     
     # Update proposal fields
@@ -270,7 +270,7 @@ async def accept_proposal(
     if current_user.id != proposal.project.customer_id:
         raise ForbiddenError("You can only accept proposals for your own projects")
     
-    if proposal.status != ProposalStatus.PENDING:
+    if proposal.status != ProposalStatus.pending:
         raise ValidationError("Only pending proposals can be accepted")
     
     # Check if project already has accepted proposal
@@ -295,14 +295,14 @@ async def accept_proposal(
             and_(
                 Proposal.project_id == proposal.project_id,
                 Proposal.id != proposal.id,
-                Proposal.status == ProposalStatus.PENDING
+                Proposal.status == ProposalStatus.pending
             )
         )
-        .values(status=ProposalStatus.REJECTED)
+        .values(status=ProposalStatus.rejected)
     )
     
     # Update project status
-    proposal.project.status = ProjectStatus.IN_PROGRESS
+    proposal.project.status = ProjectStatus.in_progress
     proposal.project.allows_proposals = False
     
     await db.commit()
@@ -332,10 +332,10 @@ async def reject_proposal(
     if current_user.id != proposal.project.customer_id:
         raise ForbiddenError("You can only reject proposals for your own projects")
     
-    if proposal.status != ProposalStatus.PENDING:
+    if proposal.status != ProposalStatus.pending:
         raise ValidationError("Only pending proposals can be rejected")
     
-    proposal.status = ProposalStatus.REJECTED
+    proposal.status = ProposalStatus.rejected
     await db.commit()
     
     logger.info(f"Proposal rejected: {proposal.id} by {current_user.email}")

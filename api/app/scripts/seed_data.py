@@ -30,7 +30,7 @@ async def create_sample_users(db: AsyncSession):
     users_data = [
         {
             "email": "admin@platform.com",
-            "role": UserRole.ADMIN,
+            "role": UserRole.admin,
             "profile": {
                 "display_name": "Platform Admin",
                 "first_name": "Admin",
@@ -43,7 +43,7 @@ async def create_sample_users(db: AsyncSession):
         },
         {
             "email": "customer1@example.com",
-            "role": UserRole.CUSTOMER,
+            "role": UserRole.customer,
             "profile": {
                 "display_name": "John Smith",
                 "first_name": "John",
@@ -57,7 +57,7 @@ async def create_sample_users(db: AsyncSession):
         },
         {
             "email": "freelancer1@example.com",
-            "role": UserRole.FREELANCER,
+            "role": UserRole.freelancer,
             "profile": {
                 "display_name": "Sarah Developer",
                 "first_name": "Sarah",
@@ -82,7 +82,7 @@ async def create_sample_users(db: AsyncSession):
         },
         {
             "email": "freelancer2@example.com",
-            "role": UserRole.FREELANCER,
+            "role": UserRole.freelancer,
             "profile": {
                 "display_name": "Mike Designer",
                 "first_name": "Mike",
@@ -114,7 +114,7 @@ async def create_sample_users(db: AsyncSession):
         user = User(
             email=user_data["email"],
             role=user_data["role"],
-            status=UserStatus.ACTIVE,
+            status=UserStatus.active,
             is_active=True,
             is_verified=True,
             email_verified_at=datetime.utcnow()
@@ -141,7 +141,7 @@ async def create_sample_projects(db: AsyncSession, users: list):
     """Create sample projects"""
     
     # Find customer user
-    customer = next(user for user in users if user.role == UserRole.CUSTOMER)
+    customer = next(user for user in users if user.role == UserRole.customer)
     
     projects_data = [
         {
@@ -160,10 +160,10 @@ async def create_sample_projects(db: AsyncSession, users: list):
             Timeline: 6-8 weeks
             Budget: $3000-5000
             """,
-            "budget_type": ProjectBudgetType.FIXED,
+            "budget_type": ProjectBudgetType.fixed,
             "budget_min": Decimal("3000.00"),
             "budget_max": Decimal("5000.00"),
-            "complexity": ProjectComplexity.INTERMEDIATE,
+            "complexity": ProjectComplexity.intermediate,
             "estimated_duration": 45,
             "deadline": date.today() + timedelta(days=60),
             "category": "Web Development",
@@ -191,10 +191,10 @@ async def create_sample_projects(db: AsyncSession, users: list):
             Platform: iOS and Android
             Industry: Healthcare
             """,
-            "budget_type": ProjectBudgetType.FIXED,
+            "budget_type": ProjectBudgetType.fixed,
             "budget_min": Decimal("2000.00"),
             "budget_max": Decimal("3500.00"),
-            "complexity": ProjectComplexity.INTERMEDIATE,
+            "complexity": ProjectComplexity.intermediate,
             "estimated_duration": 30,
             "deadline": date.today() + timedelta(days=45),
             "category": "Design",
@@ -244,7 +244,7 @@ async def create_sample_projects(db: AsyncSession, users: list):
     for project_data in projects_data:
         project = Project(
             customer_id=customer.id,
-            status=ProjectStatus.OPEN,
+            status=ProjectStatus.open,
             **project_data
         )
         
@@ -259,7 +259,7 @@ async def create_sample_proposals(db: AsyncSession, projects: list, users: list)
     """Create sample proposals"""
     
     # Find freelancer users
-    freelancers = [user for user in users if user.role == UserRole.FREELANCER]
+    freelancers = [user for user in users if user.role == UserRole.freelancer]
     
     proposals_data = [
         {
@@ -336,7 +336,7 @@ async def create_sample_proposals(db: AsyncSession, projects: list, users: list)
             currency="USD",
             estimated_delivery_days=proposal_data["estimated_delivery_days"],
             proposed_milestones=proposal_data["proposed_milestones"],
-            status=ProposalStatus.PENDING
+            status=ProposalStatus.pending
         )
         
         db.add(proposal)
@@ -355,24 +355,24 @@ async def create_sample_notifications(db: AsyncSession, users: list):
     notifications_data = [
         {
             "user": users[1],  # Customer
-            "type": NotificationType.PROPOSAL_RECEIVED,
-            "priority": NotificationPriority.NORMAL,
+            "type": NotificationType.proposal_received,
+            "priority": NotificationPriority.normal,
             "title": "New Proposal Received",
             "message": "Sarah Developer submitted a proposal for your E-commerce Website Development project.",
             "payload": {"project_id": 1, "proposal_id": 1}
         },
         {
             "user": users[2],  # Freelancer 1
-            "type": NotificationType.NEW_PROJECT_POSTED,
-            "priority": NotificationPriority.NORMAL,
+            "type": NotificationType.new_project_posted,
+            "priority": NotificationPriority.normal,
             "title": "New Project Matches Your Skills",
             "message": "A new API Development project has been posted that matches your React and Node.js skills.",
             "payload": {"project_id": 3}
         },
         {
             "user": users[3],  # Freelancer 2
-            "type": NotificationType.NEW_PROJECT_POSTED,
-            "priority": NotificationPriority.NORMAL,
+            "type": NotificationType.new_project_posted,
+            "priority": NotificationPriority.normal,
             "title": "New Design Project Available",
             "message": "A Mobile App UI Design project has been posted in your area of expertise.",
             "payload": {"project_id": 2}

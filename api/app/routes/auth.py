@@ -92,42 +92,38 @@ async def register(
     if not user_data.password and not user_data.google_sub:
         raise ValidationError("Password or Google authentication required")
     
-    # Create user
+    # Create user - FIX: Enum değerlerini düzgün çevir
     user_dict = user_data.dict(exclude_unset=True)
     if user_data.password:
         user_dict["password_hash"] = hash_password(user_data.password)
         del user_dict["password"]
     
+    # ✅ DÜZELTME: Enum değerlerini database formatına çevir
+    if "role" in user_dict and hasattr(user_dict["role"], "value"):
+        user_dict["role"] = user_dict["role"].value  #"admin"
+    elif "role" in user_dict:
+        # Eğer zaten string ise, küçük harfe çevir
+        user_dict["role"] = user_dict["role"].lower()
+    
     # Set default values
     user_dict.update({
-        "status": UserStatus.ACTIVE,
+        "status": "active",  # ✅ Direkt string kullan
         "is_active": True,
-        "is_verified": bool(user_data.google_sub),  # Google users are auto-verified
+        "is_verified": bool(user_data.google_sub),
         "email_verified_at": datetime.utcnow() if user_data.google_sub else None
     })
     
     user = User(**user_dict)
     db.add(user)
     await db.flush()
-    
-    # Create default profile
-    profile = UserProfile(
-        user_id=user.id,
-        currency="USD",
-        is_available=True,
-        is_profile_public=True,
-        total_earnings=0,
-        completed_projects=0,
-        total_reviews=0
-    )
-    db.add(profile)
-    
+    # auth.py register fonksiyonunun sonunda olması gereken:
     await db.commit()
     await db.refresh(user)
-    
-    logger.info(f"New user registered: {user.email} (ID: {user.id})")
-    
+
+# ✅ Bu satır eksik olabilir:
     return user
+    
+    # Geri kalan kod aynı kalır...
 
 @router.post("/login", response_model=LoginResponse)
 async def login(
@@ -157,7 +153,7 @@ async def login(
         access_token=access_token,
         refresh_token=refresh_token,
         expires_in=settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-        user=user
+        
     )
 
 @router.post("/refresh", response_model=LoginResponse)
@@ -261,8 +257,8 @@ async def google_auth(
             email=google_user["email"],
             google_sub=google_user["id"],
             google_email_verified=google_user.get("verified_email", False),
-            role=UserRole.FREELANCER,
-            status=UserStatus.ACTIVE,
+            role=UserRole.freelancer,
+            status=UserStatus.active,
             is_active=True,
             is_verified=True,
             email_verified_at=datetime.utcnow(),

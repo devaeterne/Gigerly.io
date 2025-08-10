@@ -2,24 +2,25 @@
 from __future__ import annotations
 
 import enum
-from decimal import Decimal
 from sqlalchemy import Column, Integer, String, Text, ForeignKey, Numeric, Date, DateTime, Boolean, JSON
 from sqlalchemy.orm import relationship
-from sqlalchemy.sql import func
 
 from .base import Base, IDMixin, TimestampMixin, ReprMixin
 
+# ========== ENUMS ==========
 class ContractStatus(enum.Enum):
-    DRAFT = "DRAFT"
-    ACTIVE = "ACTIVE"
-    PAUSED = "PAUSED"
-    COMPLETED = "COMPLETED"
-    CANCELLED = "CANCELLED"
-    DISPUTED = "DISPUTED"
+    draft = "draft"
+    active = "active"
+    paused = "paused"
+    completed = "completed"
+    cancelled = "cancelled"
+    disputed = "disputed"
 
 class ContractType(enum.Enum):
-    FIXED_PRICE = "FIXED_PRICE"
-    HOURLY = "HOURLY"
+    fixed_price = "fixed_price"
+    hourly = "hourly"
+
+# ========== MODELS ==========
 
 class Contract(Base, IDMixin, TimestampMixin, ReprMixin):
     __tablename__ = "contracts"
@@ -33,7 +34,7 @@ class Contract(Base, IDMixin, TimestampMixin, ReprMixin):
     # Contract Details
     title = Column(String(200), nullable=False)
     description = Column(Text, nullable=True)
-    contract_type = Column(String(20), nullable=False, server_default="FIXED_PRICE")
+    contract_type = Column(String(20), nullable=False, server_default="fixed_price")
     
     # Financial
     total_amount = Column(Numeric(12, 2), nullable=False)
@@ -46,7 +47,7 @@ class Contract(Base, IDMixin, TimestampMixin, ReprMixin):
     estimated_hours = Column(Integer, nullable=True)
     
     # Status
-    status = Column(String(20), nullable=False, server_default="DRAFT")
+    status = Column(String(20), nullable=False, server_default="draft")
     
     # Contract Data
     terms = Column(JSON, nullable=False, server_default="{}")

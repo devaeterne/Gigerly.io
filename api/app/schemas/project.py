@@ -11,7 +11,7 @@ from .common import MoneyAmount, SkillSchema, AttachmentSchema
 class ProjectBase(BaseModel):
     title: str = Field(..., min_length=10, max_length=200)
     description: str = Field(..., min_length=50, max_length=5000)
-    budget_type: ProjectBudgetType = ProjectBudgetType.FIXED
+    budget_type: ProjectBudgetType = ProjectBudgetType.fixed
     currency: str = Field("USD", pattern=r"^[A-Z]{3}$")
 
 class ProjectCreate(ProjectBase):
@@ -32,7 +32,7 @@ class ProjectCreate(ProjectBase):
     required_skills: List[SkillSchema] = Field(default_factory=list)
 
     # Settings
-    status: ProjectStatus = ProjectStatus.OPEN
+    status: ProjectStatus = ProjectStatus.open
     allows_proposals: bool = True
     max_proposals: int = Field(50, ge=1, le=200)
     tags: List[str] = Field(default_factory=list, max_length=10)

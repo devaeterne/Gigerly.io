@@ -5,7 +5,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field, model_validator
 
-from app.models import ProposalStatus  # Enum üyeleri: DRAFT, PENDING, ACCEPTED, REJECTED, WITHDRAWN
+from app.models import ProposalStatus  # Enum üyeleri: draft, pending, ACCEPTED, REJECTED, WITHDRAWN
 from .common import MoneyAmount, AttachmentSchema
 
 
@@ -24,7 +24,7 @@ class ProposalBase(BaseModel):
 class ProposalCreate(ProposalBase):
     project_id: int
     freelancer_id: int
-    status: ProposalStatus = ProposalStatus.PENDING  # varsayılan
+    status: ProposalStatus = ProposalStatus.pending  # varsayılan
 
 
 class ProposalUpdate(BaseModel):

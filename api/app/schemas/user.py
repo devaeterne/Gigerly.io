@@ -19,21 +19,20 @@ from .notification import (
 # Ratings like 4.75 -> DECIMAL(3,2)
 AverageRating = condecimal(max_digits=3, decimal_places=2, ge=0, le=5)
 
-# -------- Core user schemas --------
 
+# -------- Core user schemas --------
 class UserBase(BaseModel):
     email: EmailStr
-    role: UserRole = UserRole.CUSTOMER
-    status: UserStatus = UserStatus.ACTIVE
+    role: UserRole = UserRole.customer  # Bu "customer" döndürür - Migration'la uyumlu
+    status: UserStatus = UserStatus.active  # Bu "active" döndürür - Migration'la uyumlu  
     is_active: bool = True
     is_verified: bool = False
-
 
 class UserCreate(BaseModel):
     email: EmailStr
     password: Optional[str] = Field(None, min_length=8)
     google_sub: Optional[str] = None  # Google OAuth id
-    role: UserRole = UserRole.CUSTOMER
+    role: UserRole = UserRole.customer  # Bu "customer" döndürür
 
 
 class UserUpdate(BaseModel):
@@ -85,7 +84,6 @@ class LoginResponse(BaseModel):
     refresh_token: Optional[str] = None
     token_type: str = "bearer"
     expires_in: int  # seconds (e.g. 3600)
-    user: UserResponse
 
 
 # Canonical refresh names
@@ -130,7 +128,7 @@ class GoogleAuthResponse(LoginResponse):
 class RegisterRequest(BaseModel):
     email: EmailStr
     password: str
-    role: UserRole = UserRole.CUSTOMER
+    role: UserRole = UserRole.customer
 
 class RegisterResponse(BaseModel):
     user: UserResponse
