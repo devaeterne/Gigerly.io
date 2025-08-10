@@ -23,7 +23,7 @@ AverageRating = condecimal(max_digits=3, decimal_places=2, ge=0, le=5)
 
 class UserLite(BaseModel,ConfigDict):
     id: int
-    email: EmailStr
+    email: EmailStr | None = None
     model_config = ConfigDict(from_attributes=True)
     display_name: str | None = None
    

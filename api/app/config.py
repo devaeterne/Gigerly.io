@@ -16,7 +16,6 @@ class Settings(BaseSettings):
     APP_NAME: str = "Gigerly.io Platform"
     APP_VERSION: str = "1.0.0"
     API_V1_STR: str = "/api/v1"
-    SECRET_KEY: str
     DEBUG: bool = False
     ENVIRONMENT: str = "development"
     ALLOWED_HOSTS: List[str] = ["localhost", "127.0.0.1"]
