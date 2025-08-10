@@ -7,6 +7,7 @@ from sqlalchemy import UniqueConstraint
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
+
 from .base import Base, IDMixin, TimestampMixin, ReprMixin
 
 # ========== ENUMS ==========
@@ -25,6 +26,8 @@ class UserStatus(enum.Enum):
     banned = "banned"         # Migration: 'banned'
 
 # ========== MODELS ==========
+
+
 
 class User(Base, IDMixin, TimestampMixin, ReprMixin):
     __tablename__ = "users"

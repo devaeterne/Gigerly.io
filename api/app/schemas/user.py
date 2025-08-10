@@ -3,7 +3,7 @@
 from typing import List, Optional
 from datetime import datetime
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, ConfigDict, Field
 from pydantic.types import condecimal
 
 from app.models import UserRole, UserStatus
@@ -16,10 +16,16 @@ from .notification import (
     UpdateDeviceTokenRequest,
 )
 
+
+
 # Ratings like 4.75 -> DECIMAL(3,2)
 AverageRating = condecimal(max_digits=3, decimal_places=2, ge=0, le=5)
 
-
+class UserLite(BaseModel):
+    id: int
+    email: EmailStr
+    model_config = ConfigDict(from_attributes=True)
+   
 # -------- Core user schemas --------
 class UserBase(BaseModel):
     email: EmailStr

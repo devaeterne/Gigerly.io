@@ -1,11 +1,13 @@
 """Project-related schemas"""
 
-from typing import List, Optional
-from datetime import datetime, date
-
-from pydantic import BaseModel, Field, model_validator
+from __future__ import annotations
+from datetime import date, datetime
+from typing import List, Optional, Any
+from pydantic import BaseModel, Field,ConfigDict, model_validator ,field_validator
 
 from app.models import ProjectStatus, ProjectBudgetType, ProjectComplexity
+from app.models.project import ProjectStatus, ProjectBudgetType, ProjectComplexity
+from .user import UserLite
 from .common import MoneyAmount, SkillSchema, AttachmentSchema
 
 class ProjectBase(BaseModel):
@@ -14,41 +16,68 @@ class ProjectBase(BaseModel):
     budget_type: ProjectBudgetType = ProjectBudgetType.fixed
     currency: str = Field("USD", pattern=r"^[A-Z]{3}$")
 
-class ProjectCreate(ProjectBase):
-    # Budget fields
-    budget_min: Optional[MoneyAmount] = None
-    budget_max: Optional[MoneyAmount] = None
-    hourly_rate_min: Optional[MoneyAmount] = None
-    hourly_rate_max: Optional[MoneyAmount] = None
+class ProjectCreate(BaseModel):
+    title: str = Field(max_length=200)
+    description: str
+    budget_type: ProjectBudgetType
+    currency: str = Field(default="USD", min_length=3, max_length=3)
+    category: Optional[str] = None
+    subcategory: Optional[str] = None
+    # istersen diğer opsiyonelleri de açabilirsin:
+    # budget_min: Optional[float] = None
+    # budget_max: Optional[float] = None
+    # hourly_rate_min: Optional[float] = None
+    # hourly_rate_max: Optional[float] = None
+    # required_skills: Optional[List[str]] = None
 
-    # Project details
+class ProjectResponse(BaseModel):
+    id: int
+    title: str
+    description: str
+    budget_type: ProjectBudgetType
+    currency: str
+    customer: UserLite                      # ORM objesi gelecek, sorun değil
+    model_config = ConfigDict(from_attributes=True)
     complexity: Optional[ProjectComplexity] = None
-    estimated_duration: Optional[int] = Field(None, ge=1, le=365)  # days
+    estimated_duration: Optional[int] = None
     deadline: Optional[date] = None
+    category: str | None = None
+    subcategory: Optional[str] = None
+    budget_min: Optional[float] = None
+    budget_max: Optional[float] = None
+    hourly_rate_min: Optional[float] = None
+    hourly_rate_max: Optional[float] = None
 
-    # Categories and skills
-    category: Optional[str] = Field(None, max_length=100)
-    subcategory: Optional[str] = Field(None, max_length=100)
-    required_skills: List[SkillSchema] = Field(default_factory=list)
+    # DB NULL dönse bile []'ye çeviriyoruz
+    required_skills: List[str] = Field(default_factory=list)
+    is_featured: bool
+    allows_proposals: bool
+    max_proposals: int
+    tags: List[Any] = Field(default_factory=list)
+    attachments: List[Any] = Field(default_factory=list)
+    status: ProjectStatus
+    slug: Optional[str] = None
+    view_count: int
+    proposal_count: int
+    created_at: datetime
+    updated_at: datetime
+    # Eğer DB None dönerse listeye çevir
+    @field_validator("required_skills", mode="before")
+    @classmethod
+    def none_to_list(cls, v):
+        # DB'den None gelirse boş listeye çevir
+        if v is None:
+            return []
+        # Eğer JSON string dönerse parse et
+        if isinstance(v, str):
+            import json
+            try:
+                return json.loads(v)
+            except Exception:
+                return []
+        return v
 
-    # Settings
-    status: ProjectStatus = ProjectStatus.open
-    allows_proposals: bool = True
-    max_proposals: int = Field(50, ge=1, le=200)
-    tags: List[str] = Field(default_factory=list, max_length=10)
-    attachments: List[AttachmentSchema] = Field(default_factory=list)
-
-    @model_validator(mode="after")
-    def _validate_ranges_and_deadline(self):
-        if self.budget_min is not None and self.budget_max is not None:
-            if self.budget_max < self.budget_min:
-                raise ValueError("budget_max must be greater than or equal to budget_min")
-        if self.hourly_rate_min is not None and self.hourly_rate_max is not None:
-            if self.hourly_rate_max < self.hourly_rate_min:
-                raise ValueError("hourly_rate_max must be greater than or equal to hourly_rate_min")
-        if self.deadline is not None and self.deadline <= date.today():
-            raise ValueError("deadline must be in the future")
-        return self
+    model_config = ConfigDict(from_attributes=True)
 
 class ProjectUpdate(BaseModel):
     title: Optional[str] = Field(None, min_length=10, max_length=200)

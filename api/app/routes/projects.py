@@ -47,11 +47,11 @@ async def create_project(
     project = Project(**project_dict)
     db.add(project)
     await db.commit()
-    await db.refresh(project)
+    await db.refresh(project, attribute_names=["customer"])    
     
     logger.info(f"Project created: {project.title} (ID: {project.id}) by {current_user.email}")
     
-    return project
+    return ProjectResponse.model_validate(project)
 
 @router.get("", response_model=PaginatedResponse)
 async def list_projects(

@@ -138,17 +138,6 @@ class PaginationParams:
         self.size = min(max(1, size), max_size)
         self.offset = (self.page - 1) * self.size
 
-# Pagination dependency
-class PaginationParams:
-    def __init__(
-        self,
-        page: int = 1,
-        size: int = settings.DEFAULT_PAGE_SIZE,
-        max_size: int = settings.MAX_PAGE_SIZE
-    ):
-        self.page = max(1, page)
-        self.size = min(max(1, size), max_size)
-        self.offset = (self.page - 1) * self.size
 
 def get_pagination(
     page: int = Query(1, ge=1, description="Page number"),

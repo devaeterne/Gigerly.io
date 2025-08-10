@@ -1,14 +1,12 @@
 # app/models/project.py
 from __future__ import annotations
 import enum
-
-from sqlalchemy import Column, Integer, String, Text, ForeignKey, Date, Boolean, text
+from sqlalchemy import Column, Integer, String, Text, ForeignKey, Date, Boolean, Numeric, text
 from sqlalchemy.orm import relationship
-from sqlalchemy.dialects.postgresql import JSONB, ENUM as PGEnum
-
+from sqlalchemy.dialects.postgresql import ENUM, JSON
 from .base import Base, IDMixin, TimestampMixin, ReprMixin
 
-# ENUM sınıfları (lowercase değerler)
+# DB'deki enum değerleri lowercase olduğu için böyle tanımlıyoruz:
 class ProjectStatus(enum.Enum):
     draft = "draft"
     open = "open"
@@ -29,51 +27,64 @@ class ProjectComplexity(enum.Enum):
 class Project(Base, IDMixin, TimestampMixin, ReprMixin):
     __tablename__ = "projects"
 
+    # Zorunlular
     title = Column(String(200), nullable=False)
     description = Column(Text, nullable=False)
+    customer_id = Column(Integer, ForeignKey("users.id", ondelete="NO ACTION"), nullable=False)
 
-    # PG ENUM'ları mevcut isimlerle eşleştir (create_type=False -> mevcut tipleri kullan)
+    # ENUM alanlar — mevcut PG enum tiplerine bağlanıyoruz (create_type=False)
     budget_type = Column(
-        PGEnum(ProjectBudgetType, name="projectbudgettype", create_type=False, validate_strings=True),
+        ENUM(ProjectBudgetType, name="projectbudgettype", create_type=False),
         nullable=False,
-        server_default=ProjectBudgetType.fixed.value,
+        server_default=text("'fixed'::projectbudgettype"),
     )
-
-    currency = Column(String(3), nullable=False, server_default="USD")
-
-    customer_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-
+    status = Column(
+        ENUM(ProjectStatus, name="projectstatus", create_type=False),
+        nullable=False,
+        server_default=text("'open'::projectstatus"),
+    )
     complexity = Column(
-        PGEnum(ProjectComplexity, name="projectcomplexity", create_type=False, validate_strings=True),
+        ENUM(ProjectComplexity, name="projectcomplexity", create_type=False),
         nullable=True,
     )
 
+    # Sayısal alanlar
+    budget_min = Column(Numeric(10, 2), nullable=True)
+    budget_max = Column(Numeric(10, 2), nullable=True)
+    hourly_rate_min = Column(Numeric(8, 2), nullable=True)
+    hourly_rate_max = Column(Numeric(8, 2), nullable=True)
+
+    # Diğerleri
+    currency = Column(String(3), nullable=False, server_default=text("'USD'::varchar"))
     estimated_duration = Column(Integer, nullable=True)
     deadline = Column(Date, nullable=True)
 
     category = Column(String(100), nullable=True)
     subcategory = Column(String(100), nullable=True)
 
-    is_featured = Column(Boolean, nullable=False, server_default="false")
-    allows_proposals = Column(Boolean, nullable=False, server_default="true")
+    required_skills = Column(JSON, nullable=True)
+    is_featured = Column(Boolean, nullable=False, server_default=text("false"))
+    allows_proposals = Column(Boolean, nullable=False, server_default=text("true"))
+    max_proposals = Column(Integer, nullable=False, server_default=text("50"))
 
-    # 🔒 NULL'ü engelle + sağlam server default
-    max_proposals = Column(Integer, nullable=False, server_default="50", default=50)
+    # Not: DDL'de kolon tipi JSON, default ise '[]'::jsonb yazıyor.
+    # ORM tarafında default'u DB'ye bırakmak en güvenlisi:
+    attachments = Column(JSON, nullable=False, server_default=text("'[]'::jsonb"))
+    tags = Column(JSON, nullable=False, server_default=text("'[]'::jsonb"))
 
-    # JSONB default'ları PG tarafında doğru vermek gerekir
-    tags = Column(JSONB, nullable=False, server_default=text("'[]'::jsonb"), default=list)
-    attachments = Column(JSONB, nullable=False, server_default=text("'[]'::jsonb"), default=list)
+    slug = Column(String(250), unique=True, nullable=True)
+    view_count = Column(Integer, nullable=False, server_default=text("0"))
+    proposal_count = Column(Integer, nullable=False, server_default=text("0"))
 
-    status = Column(
-        PGEnum(ProjectStatus, name="projectstatus", create_type=False, validate_strings=True),
-        nullable=False,
-        server_default=ProjectStatus.open.value,
+    # İlişkiler
+    customer = relationship(
+        "User",
+        back_populates="projects_posted",
+        foreign_keys=[customer_id],
+        lazy="joined",   # response'ta nested user için işimizi kolaylaştırır
     )
-
-    slug = Column(String(255), nullable=True)
-    view_count = Column(Integer, nullable=False, server_default="0", default=0)
-    proposal_count = Column(Integer, nullable=False, server_default="0", default=0)
-
-    # İlişkiler (User modelinde back_populates = "projects_posted" olmalı)
-    customer = relationship("User", back_populates="projects_posted", foreign_keys=[customer_id])
-    proposals = relationship("Proposal", back_populates="project", cascade="all, delete-orphan")
+    proposals = relationship(
+        "Proposal",
+        back_populates="project",
+        cascade="all, delete-orphan",
+    )

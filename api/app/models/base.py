@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import sqlalchemy as sa
-from sqlalchemy import Column, Integer, DateTime, text
+from sqlalchemy import Column, Integer, DateTime, text, inspect
 from sqlalchemy.orm import declarative_base
 from sqlalchemy.inspection import inspect
 
@@ -44,11 +44,13 @@ class TimestampMixin:
     )
 
 class ReprMixin:
-    """Kolay debug için sade __repr__."""
-    def __repr__(self) -> str:  # pragma: no cover
-        cls = self.__class__.__name__
-        pk = getattr(self, "id", None)
-        return f"<{cls} id={pk!r}>"
+    def __repr__(self):
+        try:
+            state = inspect(self)
+            pk = state.identity[0] if state.identity else None
+        except Exception:
+            pk = None
+        return f"<{self.__class__.__name__} id={pk}>"
 
 class SerializeMixin:
     """
