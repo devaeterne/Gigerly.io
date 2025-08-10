@@ -1,0 +1,122 @@
+version: "3.9"
+
+services:
+  api:
+    build: 
+      context: ./api
+      dockerfile: Dockerfile
+    container_name: gigerlyio_api
+    env_file: ./api/.env
+    ports: 
+      - "8000:8000"
+    depends_on:
+      - db
+      - redis
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    volumes:
+      - ./api:/app
+      - /app/__pycache__
+    networks:
+      - gigerlyio_network
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    container_name: gigerlyio_web
+    env_file: ./web/.env.local
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+    command: npm run dev
+    volumes:
+      - ./web:/app
+      - /app/node_modules
+      - /app/.next
+    networks:
+      - gigerlyio_network
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    container_name: gigerlyio_worker
+    env_file: ./api/.env
+    depends_on:
+      - db
+      - redis
+    command: python -m app.worker
+    volumes:
+      - ./api:/app
+      - /app/__pycache__
+    networks:
+      - gigerlyio_network
+    restart: unless-stopped
+
+  db:
+    image: postgres:16-alpine
+    container_name: gigerlyio_db
+    environment:
+      POSTGRES_USER: gigerlyio_user
+      POSTGRES_PASSWORD: gigerlyio_pass
+      POSTGRES_DB: gigerlyio_db
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/init:/docker-entrypoint-initdb.d
+    networks:
+      - gigerlyio_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gigerlyio_user -d gigerlyio_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: gigerlyio_redis
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redisdata:/data
+    networks:
+      - gigerlyio_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  nginx:
+    image: nginx:alpine
+    container_name: gigerlyio_nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./nginx/conf.d:/etc/nginx/conf.d
+    depends_on:
+      - api
+      - web
+    networks:
+      - gigerlyio_network
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+    driver: local
+  redisdata:
+    driver: local
+
+networks:
+  gigerlyio_network:
+    driver: bridge

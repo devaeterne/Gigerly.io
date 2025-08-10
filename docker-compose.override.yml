@@ -1,0 +1,18 @@
+version: "3.9"
+
+services:
+  api:
+    environment:
+      - DEBUG=true
+      - LOG_LEVEL=DEBUG
+    volumes:
+      - ./api:/app
+      - /app/__pycache__
+      
+  web:
+    environment:
+      - NODE_ENV=development
+    volumes:
+      - ./web:/app
+      - /app/node_modules
+      - /app/.next
