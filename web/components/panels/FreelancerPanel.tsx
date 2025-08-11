@@ -1,3 +1,45 @@
+// components/panels/FreelancerPanel.tsx
+'use client';
+
+import React, { useState, useEffect } from 'react';
+import {
+  DollarSign, Clock, Star, TrendingUp, FileText,
+  Search, Plus, Eye, MessageSquare, Calendar,
+  CheckCircle, XCircle, AlertCircle, User, Settings,
+  Filter, RefreshCw, Target, Award, Briefcase
+} from 'lucide-react';
+
+interface FreelancerStats {
+  totalEarnings: number;
+  activeProjects: number;
+  completedProjects: number;
+  averageRating: number;
+  totalReviews: number;
+  successRate: number;
+  availableJobs: number;
+  pendingProposals: number;
+}
+
+interface Project {
+  id: number;
+  title: string;
+  description: string;
+  budget: number;
+  currency: string;
+  category: string;
+  skillsRequired: string[];
+  customer: {
+    id: number;
+    name: string;
+    rating: number;
+    location: string;
+  };
+  deadline?: string;
+  postedAt: string;
+  proposalCount: number;
+  maxProposals: number;
+  isBookmarked?: boolean;
+}
 
 interface MyProposal {
   id: number;
@@ -765,55 +807,4 @@ const FreelancerPanel: React.FC = () => {
   );
 };
 
-export default FreelancerPanel;// components/panels/FreelancerPanel.tsx
-import React, { useState, useEffect } from 'react';
-import {
-  DollarSign, Clock, Star, TrendingUp, FileText,
-  Search, Plus, Eye, MessageSquare, Calendar,
-  CheckCircle, XCircle, AlertCircle, User, Settings,
-  Filter, RefreshCw, Target, Award, Briefcase
-} from 'lucide-react';
-
-interface FreelancerStats {
-  totalEarnings: number;
-  activeProjects: number;
-  completedProjects: number;
-  averageRating: number;
-  totalReviews: number;
-  successRate: number;
-  availableJobs: number;
-  pendingProposals: number;
-}
-
-interface Project {
-  id: number;
-  title: string;
-  description: string;
-  budget: number;
-  currency: string;
-  category: string;
-  skillsRequired: string[];
-  customer: {
-    id: number;
-    name: string;
-    rating: number;
-    location: string;
-  };
-  deadline?: string;
-  postedAt: string;
-  proposalCount: number;
-  maxProposals: number;
-  isBookmarked?: boolean;
-}
-
-interface MyProposal {
-  id: number;
-  project: {
-    id: number;
-    title: string;
-    customer: string;
-  };
-  proposedBudget: number;
-  proposedTimeframe: string;
-  status: 'pending' | 'accepted' | 'rejected';
-  submittedAt: string
+export default FreelancerPanel;

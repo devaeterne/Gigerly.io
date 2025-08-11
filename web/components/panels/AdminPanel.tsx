@@ -1,5 +1,5 @@
 // components/panels/AdminPanel.tsx
-"use client";
+'use client';
 
 import React, { useState, useEffect } from 'react';
 import {
@@ -138,10 +138,10 @@ const AdminPanel: React.FC = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between py-4">
             <div className="flex items-center space-x-3">
-              <Shield className="h-8 w-8 text-red-600" />
+              <Shield className="h-8 w-8 text-blue-600" />
               <div>
                 <h1 className="text-2xl font-bold text-gray-900">Admin Panel</h1>
-                <p className="text-sm text-gray-500">Full system administration</p>
+                <p className="text-sm text-gray-500">Platform administration and management</p>
               </div>
             </div>
             <div className="flex items-center space-x-3">
@@ -167,7 +167,7 @@ const AdminPanel: React.FC = () => {
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
                   className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors ${activeTab === tab.id
-                    ? 'bg-red-100 text-red-700 border-red-200'
+                    ? 'bg-blue-100 text-blue-700 border-blue-200'
                     : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
                     }`}
                 >
@@ -176,6 +176,31 @@ const AdminPanel: React.FC = () => {
                 </button>
               ))}
             </nav>
+
+            {/* Quick Stats Sidebar */}
+            {stats && (
+              <div className="mt-8 bg-white p-4 rounded-lg shadow-sm border">
+                <h3 className="text-sm font-medium text-gray-900 mb-3">Quick Stats</h3>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-500">Total Users</span>
+                    <span className="text-sm font-semibold text-gray-900">{stats.totalUsers}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-500">Active Users</span>
+                    <span className="text-sm font-semibold text-green-600">{stats.activeUsers}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-500">Total Projects</span>
+                    <span className="text-sm font-semibold text-blue-600">{stats.totalProjects}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-500">Platform Revenue</span>
+                    <span className="text-sm font-semibold text-purple-600">${stats.platformFee?.toLocaleString()}</span>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Main Content */}
@@ -183,7 +208,7 @@ const AdminPanel: React.FC = () => {
             {activeTab === 'dashboard' && (
               <div className="space-y-6">
                 <div>
-                  <h2 className="text-lg font-medium text-gray-900 mb-4">System Overview</h2>
+                  <h2 className="text-lg font-medium text-gray-900 mb-4">Platform Overview</h2>
                   {stats && (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                       <div className="bg-white p-6 rounded-lg shadow-sm border">
@@ -313,7 +338,6 @@ const AdminPanel: React.FC = () => {
                         <option value="active">Active</option>
                         <option value="inactive">Inactive</option>
                         <option value="suspended">Suspended</option>
-                        <option value="banned">Banned</option>
                       </select>
                     </div>
 
@@ -340,12 +364,21 @@ const AdminPanel: React.FC = () => {
                       <table className="min-w-full divide-y divide-gray-200">
                         <thead className="bg-gray-50">
                           <tr>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Verified</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Last Login</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              User
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Role
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Status
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Created
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Actions
+                            </th>
                           </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
@@ -353,8 +386,12 @@ const AdminPanel: React.FC = () => {
                             <tr key={user.id} className="hover:bg-gray-50">
                               <td className="px-6 py-4 whitespace-nowrap">
                                 <div>
-                                  <div className="text-sm font-medium text-gray-900">{user.email}</div>
-                                  <div className="text-sm text-gray-500">ID: {user.id}</div>
+                                  <div className="text-sm font-medium text-gray-900">
+                                    {user.email}
+                                  </div>
+                                  <div className="text-sm text-gray-500">
+                                    {user.isVerified ? 'Verified' : 'Unverified'}
+                                  </div>
                                 </div>
                               </td>
                               <td className="px-6 py-4 whitespace-nowrap">
@@ -367,53 +404,27 @@ const AdminPanel: React.FC = () => {
                                 </span>
                               </td>
                               <td className="px-6 py-4 whitespace-nowrap">
-                                <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${user.status === 'active' ? 'bg-green-100 text-green-800' :
-                                  user.status === 'suspended' ? 'bg-yellow-100 text-yellow-800' :
-                                    'bg-red-100 text-red-800'
+                                <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${user.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
                                   }`}>
-                                  {user.status}
+                                  {user.isActive ? 'Active' : 'Inactive'}
                                 </span>
                               </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-center">
-                                {user.isVerified ? (
-                                  <CheckCircle className="h-5 w-5 text-green-500" />
-                                ) : (
-                                  <XCircle className="h-5 w-5 text-red-500" />
-                                )}
-                              </td>
                               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                {user.lastLoginAt ? new Date(user.lastLoginAt).toLocaleDateString() : 'Never'}
+                                {new Date(user.createdAt).toLocaleDateString()}
                               </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                <div className="flex items-center space-x-2">
-                                  <button
-                                    onClick={() => console.log('View user', user.id)}
-                                    className="text-blue-600 hover:text-blue-900"
-                                  >
-                                    <Eye className="h-4 w-4" />
-                                  </button>
-                                  {user.status === 'active' ? (
-                                    <button
-                                      onClick={() => updateUserStatus(user.id, 'suspended')}
-                                      className="text-yellow-600 hover:text-yellow-900"
-                                    >
-                                      <AlertTriangle className="h-4 w-4" />
-                                    </button>
-                                  ) : (
-                                    <button
-                                      onClick={() => updateUserStatus(user.id, 'active')}
-                                      className="text-green-600 hover:text-green-900"
-                                    >
-                                      <CheckCircle className="h-4 w-4" />
-                                    </button>
-                                  )}
-                                  <button
-                                    onClick={() => updateUserStatus(user.id, 'banned')}
-                                    className="text-red-600 hover:text-red-900"
-                                  >
-                                    <Ban className="h-4 w-4" />
-                                  </button>
-                                </div>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
+                                <button
+                                  onClick={() => console.log('View user', user.id)}
+                                  className="text-blue-600 hover:text-blue-900"
+                                >
+                                  <Eye className="h-4 w-4" />
+                                </button>
+                                <button
+                                  onClick={() => updateUserStatus(user.id, user.isActive ? 'inactive' : 'active')}
+                                  className={user.isActive ? 'text-red-600 hover:text-red-900' : 'text-green-600 hover:text-green-900'}
+                                >
+                                  {user.isActive ? <Ban className="h-4 w-4" /> : <CheckCircle className="h-4 w-4" />}
+                                </button>
                               </td>
                             </tr>
                           ))}
@@ -430,7 +441,7 @@ const AdminPanel: React.FC = () => {
                 <h2 className="text-lg font-medium text-gray-900">Project Management</h2>
                 <div className="bg-white p-8 rounded-lg shadow-sm border text-center">
                   <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                  <p className="text-gray-500">Project management interface will be implemented here</p>
+                  <p className="text-gray-500">Project management features will be implemented here</p>
                 </div>
               </div>
             )}

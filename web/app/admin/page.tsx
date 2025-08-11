@@ -1,4 +1,5 @@
 // app/admin/page.tsx
+"use client";
 
 import React from 'react';
 import { withAuth } from '@/app/contexts/AuthContext';
