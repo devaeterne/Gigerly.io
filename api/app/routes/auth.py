@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPBearer
+from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from jose import JWTError, jwt
@@ -225,12 +226,23 @@ async def login(
     
     logger.info(f"User logged in: {user.email} (ID: {user.id})")
     
-    return LoginResponse(
-        access_token=access_token,
-        refresh_token=refresh_token,
-        expires_in=settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-        
+    response = JSONResponse(
+        content={
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "expires_in": settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        }
     )
+    response.set_cookie(
+        key="access_token",
+        value=access_token,
+        httponly=True,
+        secure=True,
+        samesite="strict",
+        max_age=settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        path="/",
+    )
+    return response
 
 @router.post("/refresh", response_model=LoginResponse)
 async def refresh_token(
@@ -316,13 +328,23 @@ async def logout(
     redis: RedisManager = Depends(get_redis)
 ):
     """Logout user"""
-    
-    # Remove refresh token from Redis
+
     await redis.delete(f"refresh_token:{current_user.id}")
-    
+
     logger.info(f"User logged out: {current_user.email} (ID: {current_user.id})")
-    
-    return {"message": "Successfully logged out"}
+
+    response = JSONResponse({"message": "Successfully logged out"})
+    response.set_cookie(
+        key="access_token",
+        value="",
+        max_age=0,
+        expires=0,
+        path="/",
+        httponly=True,
+        secure=True,
+        samesite="strict",
+    )
+    return response
 
 @router.post("/change-password")
 async def change_password(

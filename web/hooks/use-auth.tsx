@@ -4,6 +4,16 @@
 import { createContext, useContext, useState, useEffect } from "react";
 import { User } from "@/types";
 
+const TOKEN_COOKIE = "access_token";
+
+function setAuthCookie(token: string) {
+  document.cookie = `${TOKEN_COOKIE}=${token}; Path=/; Secure; SameSite=Strict; HttpOnly`;
+}
+
+function clearAuthCookie() {
+  document.cookie = `${TOKEN_COOKIE}=; Path=/; Max-Age=0; Secure; SameSite=Strict; HttpOnly`;
+}
+
 interface AuthContextValue {
   user: User | null;
   isLoading: boolean;
@@ -11,7 +21,7 @@ interface AuthContextValue {
     email: string,
     password: string
   ) => Promise<{ success: boolean; error?: string }>;
-  logout: () => void;
+  logout: () => Promise<void>;
   isAuthenticated: boolean;
 }
 
@@ -19,23 +29,21 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 let userPromise: Promise<User | null> | null = null;
 
-async function fetchUserInfo(token: string): Promise<User | null> {
+async function fetchUserInfo(): Promise<User | null> {
   if (!userPromise) {
     userPromise = fetch("/api/v1/auth/me", {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
+      credentials: "include",
     })
       .then(async (response) => {
         if (response.ok) {
           return response.json();
         }
-        localStorage.removeItem("access_token");
+        clearAuthCookie();
         return null;
       })
       .catch((error) => {
         console.error("Failed to fetch user info:", error);
-        localStorage.removeItem("access_token");
+        clearAuthCookie();
         return null;
       });
   }
@@ -47,17 +55,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const token = localStorage.getItem("access_token");
-    if (token) {
-      fetchUserInfo(token).then((userData) => {
-        if (userData) {
-          setUser(userData);
-        }
-        setIsLoading(false);
-      });
-    } else {
+    fetchUserInfo().then((userData) => {
+      if (userData) {
+        setUser(userData);
+      }
       setIsLoading(false);
-    }
+    });
   }, []);
 
   const login = async (email: string, password: string) => {
@@ -67,13 +70,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({ email, password }),
+      credentials: "include",
     });
 
     if (response.ok) {
-      const data = await response.json();
-      localStorage.setItem("access_token", data.access_token);
-      userPromise = Promise.resolve(data.user);
-      setUser(data.user);
+      userPromise = fetchUserInfo();
+      const userData = await userPromise;
+      setUser(userData);
       return { success: true };
     } else {
       const error = await response.json();
@@ -81,8 +84,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
-  const logout = () => {
-    localStorage.removeItem("access_token");
+  const logout = async () => {
+    await fetch("/api/v1/auth/logout", {
+      method: "POST",
+      credentials: "include",
+    });
+    clearAuthCookie();
     userPromise = null;
     setUser(null);
   };
