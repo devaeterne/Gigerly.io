@@ -2,80 +2,78 @@
 """Project management routes"""
 
 from typing import List, Optional
-import logging
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import select, and_, or_, desc, asc, cast, String, func
+from sqlalchemy import (
+    select, and_, or_, desc, asc, cast, String, func
+)
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
-from app.core.redis import redis_manager
 from app.models import Project, ProjectStatus, User, UserRole
 from app.schemas.project import (
-    ProjectCreate, ProjectUpdate, ProjectResponse, ProjectListResponse
+    ProjectCreate,
+    ProjectUpdate,
+    ProjectResponse,
+    ProjectListResponse,
 )
 from app.deps import (
-    get_current_user, get_optional_user, require_customer,
-    get_pagination, PaginationParams
+    get_current_user,
+    get_optional_user,
+    require_customer,           # müşteriye kısıtlı uçlar için
+    get_pagination,
+    PaginationParams,
 )
 from app.core.exceptions import NotFoundError, ForbiddenError
 from app.schemas.common import PaginatedResponse, PaginationMeta
+
+import logging
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/projects")
 
 
+def _role_value(role) -> str:
+    """User.role hem Enum hem str olabilir; güvenli normalize."""
+    return getattr(role, "value", role)
+
+
 @router.post("", response_model=ProjectResponse)
 async def create_project(
     project_data: ProjectCreate,
     current_user: User = Depends(require_customer),
-    session: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ):
-    """Create a new project (Customer only)"""
+    """Create a new project (customer only)."""
 
-    # Project dict + güvenli varsayılanlar
-    project_dict = project_data.model_dump(exclude_unset=True)
-    project_dict.update(
+    data = project_data.model_dump(exclude_unset=True)
+    data.update(
         {
             "customer_id": current_user.id,
-            "status": ProjectStatus.draft.value,
+            "status": ProjectStatus.draft.value,  # DB string saklıyor varsayımı
             "view_count": 0,
             "proposal_count": 0,
             "is_featured": False,
             "allows_proposals": True,
-            # JSON alanları None gelirse response validation patlamasın
-            "required_skills": project_dict.get("required_skills") or [],
-            "attachments": project_dict.get("attachments") or [],
-            "tags": project_dict.get("tags") or [],
         }
     )
 
-    project = Project(**project_dict)
-    session.add(project)
-    await session.commit()
-
-    # İlişkileri yüklü bir şekilde tekrar çek (DetachedInstanceError önler)
-    res = await session.execute(
-        select(Project)
-        .options(
-            selectinload(Project.customer).selectinload(User.profile)
-        )
-        .where(Project.id == project.id)
-    )
-    project = res.scalar_one()
-
-    # Yine de None kalmışsa temizle
-    if project.required_skills is None:
-        project.required_skills = []
+    project = Project(**data)
+    db.add(project)
+    await db.commit()
+    # ilişki alanlarını (customer) doldurmak için refresh
+    await db.refresh(project)
 
     logger.info(
         "Project created: %s (ID: %s) by %s",
-        project.title, project.id, current_user.email
+        project.title,
+        project.id,
+        current_user.email,
     )
 
-    return ProjectResponse.model_validate(project, from_attributes=True)
+    return project  # response_model with from_attributes=True => otomatik serialize
 
 
 @router.get("", response_model=PaginatedResponse)
@@ -83,30 +81,32 @@ async def list_projects(
     status: Optional[ProjectStatus] = Query(None, description="Filter by status"),
     category: Optional[str] = Query(None, description="Filter by category"),
     search: Optional[str] = Query(None, description="Search in title and description"),
-    sort_by: str = Query("created_at", pattern="^(created_at|budget_max|deadline|proposal_count)$"),
+    sort_by: str = Query(
+        "created_at", pattern="^(created_at|budget_max|deadline|proposal_count)$"
+    ),
     sort_order: str = Query("desc", pattern="^(asc|desc)$"),
     pagination: PaginationParams = Depends(get_pagination),
-    session: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: Optional[User] = Depends(get_optional_user),
 ):
-    """List projects with filtering and search"""
+    """List projects with filtering, search, sorting, pagination."""
 
-    base_query = select(Project).options(
-        selectinload(Project.customer).selectinload(User.profile)
+    query = (
+        select(Project)
+        .options(selectinload(Project.customer).selectinload(User.profile))
     )
 
     filters = []
 
-    # Rol bazlı görünürlük
-    if not current_user or current_user.role not in [
+    # Görünürlük: misafir/freelancer sadece 'open' görsün.
+    if not current_user or _role_value(current_user.role) not in {
         UserRole.admin.value,
         UserRole.moderator.value,
         UserRole.customer.value,
-    ]:
-        # Misafirler sadece open görsün
+    }:
         filters.append(cast(Project.status, String) == ProjectStatus.open.value)
-    elif current_user and current_user.role == UserRole.customer.value:
-        # Müşteri kendi projelerini (her statü) + açık projeleri görsün
+    elif current_user and _role_value(current_user.role) == UserRole.customer.value:
+        # Customer kendi tüm projelerini + open projeleri görür
         filters.append(
             or_(
                 Project.customer_id == current_user.id,
@@ -120,60 +120,59 @@ async def list_projects(
     if category:
         filters.append(Project.category == category)
     if search:
-        filters.append(
-            or_(
-                Project.title.ilike(f"%{search}%"),
-                Project.description.ilike(f"%{search}%"),
-            )
-        )
+        like = f"%{search}%"
+        filters.append(or_(Project.title.ilike(like), Project.description.ilike(like)))
 
     if filters:
-        base_query = base_query.where(and_(*filters))
+        query = query.where(and_(*filters))
 
-    # Total count
-    count_q = select(func.count(Project.id))
+    # Toplam (COUNT) — tüm satırları çekmek yerine performanslı sayım
+    count_q = select(func.count()).select_from(Project)
     if filters:
         count_q = count_q.where(and_(*filters))
-    total = (await session.execute(count_q)).scalar_one()
+    total = (await db.execute(count_q)).scalar_one()
 
     # Sıralama
     sort_column = getattr(Project, sort_by)
-    order_expr = desc(sort_column) if sort_order == "desc" else asc(sort_column)
+    query = query.order_by(desc(sort_column) if sort_order == "desc" else asc(sort_column))
 
-    # Sayfalama + çekim
-    query = base_query.order_by(order_expr).offset(pagination.offset).limit(pagination.size)
-    projects = (await session.execute(query)).scalars().all()
+    # Sayfalama
+    query = query.offset(pagination.offset).limit(pagination.size)
 
-    # Liste response elemanları
+    result = await db.execute(query)
+    projects = result.scalars().all()
+
+    # Liste response item'ları
     items: List[ProjectListResponse] = []
     for p in projects:
-        # required_skills None ise [] yap
-        req_skills = p.required_skills or []
-        # kısa açıklama
-        short_desc = p.description[:200] + "..." if p.description and len(p.description) > 200 else p.description
-
-        item = ProjectListResponse(
-            id=p.id,
-            title=p.title,
-            description=short_desc,
-            customer_id=p.customer_id,
-            budget_type=p.budget_type,
-            budget_min=p.budget_min,
-            budget_max=p.budget_max,
-            hourly_rate_min=p.hourly_rate_min,
-            hourly_rate_max=p.hourly_rate_max,
-            currency=p.currency,
-            complexity=p.complexity,
-            deadline=p.deadline,
-            status=p.status,
-            category=p.category,
-            required_skills=req_skills,
-            proposal_count=p.proposal_count,
-            created_at=p.created_at,
-            customer_name=p.customer.profile.display_name if p.customer and p.customer.profile else None,
-            budget_display=getattr(p, "budget_display", None),
+        desc_preview = (
+            (p.description[:200] + "...") if p.description and len(p.description) > 200 else p.description
         )
-        items.append(item)
+        items.append(
+            ProjectListResponse(
+                id=p.id,
+                title=p.title,
+                description=desc_preview or "",
+                customer_id=p.customer_id,
+                budget_type=p.budget_type,
+                budget_min=p.budget_min,
+                budget_max=p.budget_max,
+                hourly_rate_min=p.hourly_rate_min,
+                hourly_rate_max=p.hourly_rate_max,
+                currency=p.currency,
+                complexity=p.complexity,
+                deadline=p.deadline,
+                status=p.status,
+                category=p.category,
+                required_skills=p.required_skills or [],
+                proposal_count=p.proposal_count or 0,
+                created_at=p.created_at,
+                customer_name=p.customer.profile.display_name
+                if p.customer and p.customer.profile
+                else None,
+                budget_display=getattr(p, "budget_display", None),
+            )
+        )
 
     pages = (total + pagination.size - 1) // pagination.size
     meta = PaginationMeta(
@@ -191,106 +190,105 @@ async def list_projects(
 @router.get("/{project_id}", response_model=ProjectResponse)
 async def get_project(
     project_id: int,
-    session: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: Optional[User] = Depends(get_optional_user),
 ):
-    """Get project by ID"""
+    """Get project by ID (görünürlük kontrolü ile)."""
 
-    res = await session.execute(
+    result = await db.execute(
         select(Project)
-        .options(
-            selectinload(Project.customer).selectinload(User.profile)
-        )
+        .options(selectinload(Project.customer).selectinload(User.profile))
         .where(Project.id == project_id)
     )
-    project = res.scalar_one_or_none()
+    project = result.scalar_one_or_none()
     if not project:
         raise NotFoundError("Project", project_id)
 
-    # Erişim kontrolü
+    # Görünürlük: 'open' değilse; sahibi veya admin/mod değilse yasak
     if project.status != ProjectStatus.open.value:
         if not current_user:
             raise ForbiddenError("Project is not publicly available")
-        if (current_user.id != project.customer_id and
-                current_user.role not in [UserRole.admin.value, UserRole.moderator.value]):
+        if (
+            current_user.id != project.customer_id
+            and _role_value(current_user.role)
+            not in {UserRole.admin.value, UserRole.moderator.value}
+        ):
             raise ForbiddenError("Project is not publicly available")
 
-    # Sahibi değilse view counter'ı Redis'te artır
+    # Sahibi olmayan görüntülemelerde view_count artır
     if not current_user or current_user.id != project.customer_id:
-        await redis_manager.incr(f"project:{project_id}:views")
+        project.view_count = (project.view_count or 0) + 1
+        await db.commit()
 
-    if project.required_skills is None:
-        project.required_skills = []
-
-    return ProjectResponse.model_validate(project, from_attributes=True)
+    return project
 
 
 @router.put("/{project_id}", response_model=ProjectResponse)
 async def update_project(
     project_id: int,
     project_data: ProjectUpdate,
-    session: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Update project"""
+    """Update project (owner or admin/mod)."""
 
-    res = await session.execute(select(Project).where(Project.id == project_id))
-    project = res.scalar_one_or_none()
+    proj_res = await db.execute(select(Project).where(Project.id == project_id))
+    project = proj_res.scalar_one_or_none()
     if not project:
         raise NotFoundError("Project", project_id)
 
-    # Yetki kontrolü
-    if (current_user.id != project.customer_id and
-            current_user.role not in [UserRole.admin.value, UserRole.moderator.value]):
+    # Yetki
+    if current_user.id != project.customer_id and _role_value(current_user.role) not in {
+        UserRole.admin.value,
+        UserRole.moderator.value,
+    }:
         raise ForbiddenError("You can only update your own projects")
 
-    # Güncelle
+    # Alanları uygula
     update_data = project_data.model_dump(exclude_unset=True)
     for field, value in update_data.items():
-        if hasattr(value, "value"):  # Enum ise
+        # Enum -> str
+        if hasattr(value, "value"):
             value = value.value
+        # required_skills None ise boş listeye çekmek isteyebilirsiniz; burada geleni yazarız
         setattr(project, field, value)
 
-    await session.commit()
-
-    # İlişkili müşteriyle geri çek
-    res = await session.execute(
-        select(Project)
-        .options(selectinload(Project.customer).selectinload(User.profile))
-        .where(Project.id == project.id)
-    )
-    project = res.scalar_one()
-    if project.required_skills is None:
-        project.required_skills = []
+    await db.commit()
+    await db.refresh(project)
 
     logger.info(
         "Project updated: %s (ID: %s) by %s",
-        project.title, project.id, current_user.email
+        project.title,
+        project.id,
+        current_user.email,
     )
 
-    return ProjectResponse.model_validate(project, from_attributes=True)
+    return project
 
 
 @router.delete("/{project_id}")
 async def delete_project(
     project_id: int,
-    session: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Delete project"""
+    """Delete project (owner or admin/mod; aktif contract yoksa)."""
 
-    res = await session.execute(select(Project).where(Project.id == project_id))
-    project = res.scalar_one_or_none()
+    proj_res = await db.execute(select(Project).where(Project.id == project_id))
+    project = proj_res.scalar_one_or_none()
     if not project:
         raise NotFoundError("Project", project_id)
 
-    if (current_user.id != project.customer_id and
-            current_user.role not in [UserRole.admin.value, UserRole.moderator.value]):
+    if current_user.id != project.customer_id and _role_value(current_user.role) not in {
+        UserRole.admin.value,
+        UserRole.moderator.value,
+    }:
         raise ForbiddenError("You can only delete your own projects")
 
-    # Aktif kontrat var mı?
+    # Aktif contract kontrolü
     from app.models import Contract, ContractStatus
-    contracts_res = await session.execute(
+
+    contracts_result = await db.execute(
         select(Contract).where(
             and_(
                 Contract.project_id == project_id,
@@ -300,15 +298,17 @@ async def delete_project(
             )
         )
     )
-    if contracts_res.scalars().first():
+    if contracts_result.scalars().first():
         raise ForbiddenError("Cannot delete project with active contracts")
 
-    await session.delete(project)
-    await session.commit()
+    await db.delete(project)
+    await db.commit()
 
     logger.warning(
         "Project deleted: %s (ID: %s) by %s",
-        project.title, project.id, current_user.email
+        project.title,
+        project.id,
+        current_user.email,
     )
 
     return {"message": "Project deleted successfully"}
@@ -317,12 +317,12 @@ async def delete_project(
 @router.post("/{project_id}/publish")
 async def publish_project(
     project_id: int,
-    session: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_customer),
 ):
-    """Publish project (make it open for proposals)"""
+    """Publish project (draft -> open)."""
 
-    res = await session.execute(select(Project).where(Project.id == project_id))
+    res = await db.execute(select(Project).where(Project.id == project_id))
     project = res.scalar_one_or_none()
     if not project:
         raise NotFoundError("Project", project_id)
@@ -330,15 +330,17 @@ async def publish_project(
     if current_user.id != project.customer_id:
         raise ForbiddenError("You can only publish your own projects")
 
-    if project.status != ProjectStatus.draft:
+    if project.status != ProjectStatus.draft.value:
         raise ForbiddenError("Only draft projects can be published")
 
     project.status = ProjectStatus.open.value
-    await session.commit()
+    await db.commit()
 
     logger.info(
         "Project published: %s (ID: %s) by %s",
-        project.title, project.id, current_user.email
+        project.title,
+        project.id,
+        current_user.email,
     )
 
     return {"message": "Project published successfully"}
@@ -348,22 +350,30 @@ async def publish_project(
 async def close_project(
     project_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_customer)
+    current_user: User = Depends(require_customer),
 ):
-    result = await db.execute(select(Project).where(Project.id == project_id))
-    project = result.scalar_one_or_none()
+    """Close project (open/in_progress -> closed)."""
+
+    res = await db.execute(select(Project).where(Project.id == project_id))
+    project = res.scalar_one_or_none()
     if not project:
         raise NotFoundError("Project", project_id)
+
     if current_user.id != project.customer_id:
         raise ForbiddenError("You can only close your own projects")
 
-    cur_status = project.status.value if isinstance(project.status, ProjectStatus) else str(project.status)
-
-    if cur_status not in {ProjectStatus.open.value, ProjectStatus.in_progress.value}:
+    if project.status not in {ProjectStatus.open.value, ProjectStatus.in_progress.value}:
         raise ForbiddenError("Only open or in-progress projects can be closed")
 
-    project.status = ProjectStatus.closed if isinstance(project.status, ProjectStatus) else ProjectStatus.closed.value
+    project.status = ProjectStatus.closed.value
     project.allows_proposals = False
     await db.commit()
-    await db.refresh(project)
+
+    logger.info(
+        "Project closed: %s (ID: %s) by %s",
+        project.title,
+        project.id,
+        current_user.email,
+    )
+
     return {"message": "Project closed successfully"}

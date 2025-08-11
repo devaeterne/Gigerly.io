@@ -43,7 +43,7 @@ services:
     depends_on:
       - api
     networks:
-      - gigerlyio_network
+      - gigerly.io_network
     restart: unless-stopped
     deploy:
       resources:
