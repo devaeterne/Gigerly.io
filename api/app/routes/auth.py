@@ -124,7 +124,7 @@ async def get_or_create_google_user(db: AsyncSession, token: str) -> User:
         await db.commit()
         await db.refresh(user)
         return user
-
+    
     user = User(
         email=google_user["email"],
         google_sub=google_user["id"],
@@ -164,35 +164,38 @@ async def register(
     db: AsyncSession = Depends(get_db),
     _: dict = Depends(rate_limit_check),
 ):
-    """Register a new user"""
-
-    result = await db.execute(select(User).where(User.email == user_data.email))
-    if result.scalar_one_or_none():
+    # E-posta benzersiz mi?
+    exists = await db.execute(select(User).where(User.email == user_data.email))
+    if exists.scalar_one_or_none():
         raise ConflictError("Email already registered")
 
-    if not user_data.password and not user_data.google_sub:
+    # Parola zorunluluğu (Google ile gelmediyse)
+    if not user_data.password and not getattr(user_data, "google_sub", None):
         raise ValidationError("Password or Google authentication required")
 
-    user_dict = user_data.dict(exclude_unset=True)
+    # Rol: gelmezse freelancer, gelirse str/enum normalize et
+    if getattr(user_data, "role", None) is None:
+        role = UserRole.freelancer
+    else:
+        role = (
+            user_data.role
+            if isinstance(user_data.role, UserRole)
+            else UserRole(str(user_data.role))  # 'customer'/'freelancer' gibi string’i Enum’a çevir
+        )
+
+    fields = {
+        "email": user_data.email,
+        "role": role,                        # <-- Enum olarak yazıyoruz
+        "status": UserStatus.active,         # <-- Enum
+        "is_active": True,
+        "is_verified": bool(getattr(user_data, "google_sub", None)),
+        "email_verified_at": datetime.utcnow() if getattr(user_data, "google_sub", None) else None,
+    }
+
     if user_data.password:
-        user_dict["password_hash"] = hash_password(user_data.password)
-        del user_dict["password"]
+        fields["password_hash"] = hash_password(user_data.password)  # kolonuza göre adını düzeltin
 
-    if "role" in user_dict and hasattr(user_dict["role"], "value"):
-        user_dict["role"] = user_dict["role"].value
-    elif "role" in user_dict:
-        user_dict["role"] = user_dict["role"].lower()
-
-    user_dict.update(
-        {
-            "status": "active",
-            "is_active": True,
-            "is_verified": bool(user_data.google_sub),
-            "email_verified_at": datetime.utcnow() if user_data.google_sub else None,
-        }
-    )
-
-    user = User(**user_dict)
+    user = User(**fields)
     db.add(user)
     await db.commit()
     await db.refresh(user)
