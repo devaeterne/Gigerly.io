@@ -18,11 +18,13 @@ class Settings(BaseSettings):
     API_V1_STR: str = "/api/v1"
     DEBUG: bool = False
     ENVIRONMENT: str = "development"
-    ALLOWED_HOSTS: List[str] = ["*"]
-    CORS_ORIGINS: List[str] = []
+    ALLOWED_HOSTS: List[str] = ["localhost", "127.0.0.1"]
+    CORS_ORIGINS: List[str] = ["http://localhost:3000"]
     
     # Database
     DATABASE_URL: str
+    POOL_SIZE: int = 20
+    MAX_OVERFLOW: int = 0
     
     # Redis
     REDIS_URL: str = "redis://localhost:6379/0"
