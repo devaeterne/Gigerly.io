@@ -15,8 +15,8 @@ engine = create_async_engine(
     future=True,
     pool_pre_ping=True,
     pool_recycle=3600,
-    pool_size=20,
-    max_overflow=0,
+    pool_size=settings.POOL_SIZE,
+    max_overflow=settings.MAX_OVERFLOW,
 )
 
 # Async session factory
@@ -32,6 +32,8 @@ sync_engine = create_engine(
     echo=settings.DEBUG,
     pool_pre_ping=True,
     pool_recycle=3600,
+    pool_size=settings.POOL_SIZE,
+    max_overflow=settings.MAX_OVERFLOW,
 )
 
 SessionLocal = sessionmaker(
@@ -89,4 +91,5 @@ async def check_db_health() -> bool:
     except Exception as e:
         logger.error(f"Database health check failed: {e}")
         return False
+
 get_session = get_db

@@ -23,6 +23,8 @@ class Settings(BaseSettings):
     
     # Database
     DATABASE_URL: str
+    POOL_SIZE: int = 20
+    MAX_OVERFLOW: int = 0
     
     # Redis
     REDIS_URL: str = "redis://localhost:6379/0"
