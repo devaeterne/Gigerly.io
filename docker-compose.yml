@@ -24,6 +24,8 @@ services:
     build:
       context: ./web
       dockerfile: Dockerfile
+    environment:
+      - MODE_ENV=development    
     container_name: gigerlyio_web
     env_file: ./web/.env.local
     ports:

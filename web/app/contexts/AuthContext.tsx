@@ -83,6 +83,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         },
         body: JSON.stringify({ email, password }),
       });
+      console.log('📡 Response status:', response.status); // Debug log
+      console.log('📡 Response headers:', Object.fromEntries(response.headers)); // Debug log
 
       if (!response.ok) {
         const error = await response.json();

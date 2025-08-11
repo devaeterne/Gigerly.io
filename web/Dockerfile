@@ -1,15 +1,16 @@
-# web/Dockerfile (multi-stage)
-
 # Builder stage
 FROM node:18-alpine AS builder
 
 WORKDIR /app
 
-# Install dependencies and build the application
+# Install ALL dependencies (including devDependencies for build)
 COPY package.json package-lock.json ./
 RUN npm ci
 
+# Copy source code
 COPY . .
+
+# Build the application (TailwindCSS needed here)
 ENV NEXT_TELEMETRY_DISABLED 1
 RUN npm run build
 
@@ -20,19 +21,24 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED 1
 
+# Create non-root user
+RUN addgroup --system --gid 1001 nodejs
+RUN adduser --system --uid 1001 nextjs
+
 # Install only production dependencies
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev && npm cache clean --force
 
-# Copy build output
-COPY --from=builder /app/.next ./.next
-COPY --from=builder /app/public ./public
-COPY --from=builder /app/next.config.js ./next.config.js
+# Copy built application
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 
-# Run as non-root user
-RUN chown -R node:node /app
-USER node
+USER nextjs
 
 EXPOSE 3000
 
-CMD ["npm", "start"]
+ENV PORT 3000
+ENV HOSTNAME "0.0.0.0"
+
+CMD ["node", "server.js"]
