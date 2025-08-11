@@ -6,6 +6,7 @@ import asyncio
 import pytest
 import pytest_asyncio
 from typing import AsyncGenerator, Generator
+from app.config import settings  
 
 try:
     from httpx import AsyncClient
