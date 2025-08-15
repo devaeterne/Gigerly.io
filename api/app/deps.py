@@ -34,6 +34,7 @@ security = HTTPBearer(auto_error=False)
 async def get_current_user(
     db: AsyncSession = Depends(get_db),
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+    request: Request,
 ) -> User:
     """Extract and validate current user from a Bearer access token.
 
@@ -41,12 +42,18 @@ async def get_current_user(
     - Token decode edilemedi / type != 'access' => 401
     - Kullanıcı bulunamadı / pasif => 401
     """
-    if not credentials:
+    token = None
+    if credentials:
+        token = credentials.credentials
+    else:
+        token = request.cookies.get("access_token") if request else None
+
+    if not token:
         raise UnauthorizedError("Authorization header missing")
 
     try:
         payload = jwt.decode(
-            credentials.credentials,
+            token,
             settings.JWT_SECRET,
             algorithms=[settings.JWT_ALGORITHM],
         )
